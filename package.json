@@ -1,0 +1,54 @@
+{
+  "name": "clothing-store",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "packageManager": "npm@11.19.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --conditions=react-server --test tests/*.test.ts",
+    "check:env": "node --experimental-strip-types --conditions=react-server --env-file=.env.local --input-type=module -e \"const { readEnvironment, publicEnvironment } = await import('./src/config/env.ts'); console.log(publicEnvironment(readEnvironment()));\"",
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build --webpack",
+    "start": "next start --hostname 127.0.0.1",
+    "test:db": "node --experimental-strip-types --conditions=react-server scripts/test-db.ts",
+    "test:browser": "node scripts/test-browser.mjs",
+    "types:db": "node --experimental-strip-types --conditions=react-server scripts/test-db.ts --generate-types",
+    "seed:sql": "node --experimental-strip-types --conditions=react-server --env-file=.env.local scripts/seed-fixtures.ts",
+    "test:http": "node scripts/test-http.mjs",
+    "test:m2": "node scripts/test-m2-http.mjs",
+    "test:m4": "node scripts/test-m4-http.mjs",
+    "prepare:m4": "node --experimental-strip-types --conditions=react-server scripts/prepare-m4-fixture.ts",
+    "prepare:m5": "node --experimental-strip-types --conditions=react-server scripts/prepare-m5-fixture.ts",
+    "test:m5": "node scripts/test-m5-http.mjs",
+    "lint": "eslint .",
+    "check:secrets": "node scripts/check-secrets.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1140.0",
+    "@aws-sdk/s3-request-presigner": "3.1140.0",
+    "@electric-sql/pglite": "0.5.8",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.1",
+    "next": "16.3.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "0.0.1",
+    "sharp": "0.35.4",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.13.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.6",
+    "playwright": "1.63.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,81 @@
+.intro { padding: 48px 0 32px; max-width: 780px; }
+.intro h1 { font-size: clamp(36px, 4.6vw, 68px); letter-spacing: -.045em; margin: 18px 0 16px; text-transform: uppercase; }
+.intro p { color: var(--muted); max-width: 650px; }
+.breadcrumb { font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 0; border-top: 1px solid var(--border); }
+.toolbar p { margin: 0; font-size: 14px; }
+.sort { margin: 0 0 0 auto; display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 400; }
+.sort select { width: auto; min-width: 190px; font-size: 16px; background: transparent; }
+.controls { margin-bottom: 28px; }
+.controls .mobileFilter { display: none; }
+.desktopFilters { margin: 0; padding: 0; border-width: 1px 0; background: transparent; border-radius: 0; }
+.desktopFilters > summary { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; font-size: 14px; list-style: none; }
+.desktopFilters > summary::-webkit-details-marker { display: none; }
+.desktopFilters > summary span { font-size: 22px; font-weight: 400; }
+.desktopFilters[open] > summary { margin: 0; }
+.desktopFilters[open] > summary span { transform: rotate(45deg); }
+.desktopFilters form { margin: 0 0 24px; }
+.fields { display: grid; grid-template-columns: 1.1fr .6fr 1fr 1.25fr 1fr; gap: 24px; }
+.fields fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.fields legend { font-weight: 650; font-size: 13px; padding: 10px 0; }
+.checks { display: grid; gap: 0; }
+.checks label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 13px; font-weight: 400; margin: 0; cursor: pointer; }
+.checks input { flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; margin: 0; accent-color: var(--foreground); }
+.prices { display: grid; gap: 12px; }
+.prices label { display: grid; gap: 6px; margin: 0; font-size: 12px; font-weight: 400; }
+.prices input { min-width: 0; font-size: 16px; }
+.desktopFilters .priceApply { justify-self: start; min-height: 40px; margin-top: 8px; padding: 8px 12px; font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 0 0; }
+.chips a { display: inline-flex; gap: 12px; align-items: center; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); font-size: 12px; text-decoration: none; }
+.chips a:hover { background: var(--surface, #f0efeb); }
+.chips a.reset { border: 0; text-decoration: underline; }
+.error { color: #8a2020; font-size: 14px; }
+.search { display: flex; gap: 12px; align-items: end; margin: 0 0 32px; max-width: 760px; }
+.search label { flex: 1; display: grid; gap: 8px; margin: 0; font-size: 14px; }
+.search input { min-width: 0; }
+.search button { margin: 0; min-height: 48px; }
+.empty { padding: 56px 16px; text-align: center; background: var(--surface, #f0efeb); }
+.empty h2 { font-size: clamp(24px, 3vw, 36px); }
+.emptyLinks { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin: 24px 0 0; }
+.notice { border-left: 3px solid var(--accent); background: var(--surface, #f0efeb); padding: 12px 16px; margin: 0 0 24px; font-size: 14px; }
+.pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 40px 0 64px; }
+.pagination a, .pagination span { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 8px 12px; border: 1px solid var(--border); text-decoration: none; font-size: 14px; }
+.pagination [aria-current] { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
+.results { padding-bottom: 48px; }
+.directory { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 24px; padding-bottom: 64px; }
+.collection { display: block; text-decoration: none; min-width: 0; }
+.collectionImage { width: 100%; aspect-ratio: 4 / 3; overflow: hidden; background: var(--surface, #f0efeb); }
+.collection img, .collectionPlaceholder { display: block; width: 100%; height: 100%; object-fit: cover; background: var(--surface, #f0efeb); }
+.collection img { transition: opacity 160ms ease; }
+.collection:hover img { opacity: .88; }
+.collection h2 { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(18px, 2.2vw, 28px); margin: 16px 0 4px; }
+.collection p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.mobileForm { display: flex; flex-direction: column; gap: 24px; margin: 0; }
+.filterOverlay { width: min(100%, 560px); }
+.applyBar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; position: sticky; bottom: 0; background: var(--background); padding: 16px 0 max(16px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
+.applyBar button { margin: 0; }
+@media (max-width: 1023px) { .fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } .directory { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px) {
+  .intro { padding: 32px 0 24px; }
+  .intro h1 { font-size: clamp(32px, 8vw, 48px); }
+  .toolbar { gap: 12px; }
+  .toolbar > p { flex-basis: 100%; font-size: 12px; }
+  .controls .mobileFilter { display: inline-flex; padding: 10px 16px; font-size: 14px; }
+  .sort { flex: 1; min-width: 0; font-size: 12px; gap: 8px; }
+  .sort select { min-width: 0; width: 100%; font-size: 16px; padding-left: 8px; }
+  .desktopFilters { display: none; }
+  .fields { grid-template-columns: 1fr; gap: 16px; }
+  .checks { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+  .checks label { min-height: 44px; }
+  .fields fieldset { padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .prices { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .search { flex-wrap: wrap; gap: 12px; }
+  .search label { flex-basis: 100%; }
+  .search button { width: 100%; }
+  .empty { padding: 36px 16px; }
+  .directory { gap: 24px 16px; }
+  .collection h2 { font-size: 18px; }
+  .collectionImage { aspect-ratio: 3 / 4; }
+}
+@media (max-width: 350px) { .directory { grid-template-columns: 1fr; } .sort { flex-basis: 100%; margin: 0; } }
+@media (prefers-reduced-motion: reduce) { .collection img { transition: none; } }

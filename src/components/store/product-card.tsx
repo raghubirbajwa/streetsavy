@@ -1,0 +1,15 @@
+"use client";
+import Image from "next/image";
+import Link from "next/link";
+import { useState } from "react";
+import type { PublicProduct, PublicSizeGuide } from "../../lib/validation/catalog.ts";
+import { formatMoney, mediaUrl, productColors, productMedia } from "../../lib/store/purchase.ts";
+import { useStore } from "./store-provider.tsx";
+import "./purchase.css";
+export type ProductCardProps={product:PublicProduct;matchingVariants?:PublicProduct["variants"];sizeGuides?:PublicSizeGuide[]};
+export function ProductCard({product,matchingVariants=product.variants,sizeGuides=[]}:ProductCardProps){
+  const store=useStore();const colors=productColors(matchingVariants);const [chosenColor,setChosenColor]=useState(colors[0]?.key??"");const color=colors.some((c)=>c.key===chosenColor)?chosenColor:colors[0]?.key??"";const images=productMedia(product,color).filter((m)=>m.type==="image");const cover=images[0];const alternate=images[1];const [imageFailed,setImageFailed]=useState(false);
+  const prices=matchingVariants.map((v)=>v.pricePaise);const price=prices.length?Math.min(...prices):null;const available=matchingVariants.some((v)=>v.available);const saved=store.wishlistIds.includes(product.id);
+  return <article className="store-product-card"><div className="store-product-image"><Link href={`/products/${product.slug}`} aria-label={`View ${product.title}`} tabIndex={-1}>{cover&&!imageFailed?<><Image src={mediaUrl(cover.publicKey)} alt={cover.alt} width={cover.width} height={cover.height} sizes="(max-width: 359px) 100vw, (max-width: 767px) 50vw, (max-width: 1023px) 33vw, 25vw" onError={()=>setImageFailed(true)}/>{alternate&&<Image className="store-product-alternate" src={mediaUrl(alternate.publicKey)} alt="" width={alternate.width} height={alternate.height} sizes="(max-width: 767px) 50vw, 25vw"/>}</>:<div className="store-image-placeholder"><span>YOUR BRAND</span><span>Image coming soon</span></div>}</Link><button type="button" className="store-card-save" disabled={!store.wishlistReady} aria-pressed={saved} aria-label={saved?`Remove ${product.title} from wishlist`:`Save ${product.title} to wishlist`} onClick={()=>store.toggleWishlist(product.id)}>{saved?"♥":"♡"}</button>{!available&&<span className="store-product-badge">Sold out</span>}<button type="button" className="store-quick-button" onClick={()=>store.openQuickAdd(product,undefined,sizeGuides.find((g)=>g.id===product.sizeGuideId),color)}>Choose size <span aria-hidden="true">+</span></button></div><div className="store-product-info"><h3><Link href={`/products/${product.slug}`}>{product.title}</Link></h3><p>{price===null?"Unavailable":<>{new Set(prices).size>1?"From ":""}{formatMoney(price)}</>}</p><div className="store-card-colors" role="group" aria-label={`Colours for ${product.title}`}>{colors.map((c)=><button type="button" key={c.key} aria-label={c.label} aria-pressed={color===c.key} className={color===c.key?"selected":""} onClick={()=>{setChosenColor(c.key);setImageFailed(false);}}><span style={{backgroundColor:c.hex??"#e4e2dc"}}/></button>)}</div></div></article>;
+}
+export default ProductCard;

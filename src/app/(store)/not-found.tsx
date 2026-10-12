@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function NotFound() { return <main id="main" className="store-info"><p className="store-kicker">404 / PAGE NOT FOUND</p><h1>We couldn’t find that page.</h1><p>The item may no longer be available. Explore the current collections to find something else.</p><Link className="store-cta" href="/collections">Explore collections <span aria-hidden="true">↗</span></Link></main>; }

@@ -1,0 +1,115 @@
+begin;
+
+create function public.fulfillment_order_summary(p_order public.orders) returns jsonb language sql stable set search_path='' as $$
+select jsonb_build_object('id',p_order.id,'orderNumber',p_order.order_number,'orderStatus',p_order.order_status,'paymentStatus',p_order.payment_status,'fulfillmentStatus',p_order.fulfillment_status,'attentionReason',p_order.attention_reason,'totalPaise',p_order.total_paise,'capturedPaise',p_order.captured_paise,'refundedPaise',p_order.refunded_paise,'createdAt',p_order.created_at,'version',p_order.version,'fixture',p_order.fixture);
+$$;
+
+create function public.fulfillment_admin_orders(p_actor uuid,p_filters jsonb default '{}') returns jsonb language plpgsql security definer set search_path='' as $$
+declare result jsonb; total_count integer; page_number integer:=coalesce((p_filters->>'page')::integer,1);
+begin
+ perform public.require_admin_actor(p_actor);
+ if page_number not between 1 and 100000 or jsonb_typeof(p_filters)<>'object' or exists(select 1 from jsonb_object_keys(p_filters) k where k not in('page','search','paymentStatus','fulfillmentStatus','attention')) or length(coalesce(p_filters->>'search',''))>80 then raise exception 'INVALID_PAYLOAD'; end if;
+ with filtered as(select o.* from public.orders o where (not(p_filters?'paymentStatus') or o.payment_status=p_filters->>'paymentStatus') and (not(p_filters?'fulfillmentStatus') or o.fulfillment_status=p_filters->>'fulfillmentStatus') and (not(p_filters?'attention') or (o.attention_reason is not null)=((p_filters->>'attention')::boolean)) and (coalesce(p_filters->>'search','')='' or position(lower(p_filters->>'search') in lower(o.order_number))>0))
+ select count(*) into total_count from filtered;
+ select coalesce(jsonb_agg(public.fulfillment_order_summary(rows) order by rows.created_at desc,rows.id),'[]'::jsonb) into result from (select o.* from public.orders o where (not(p_filters?'paymentStatus') or o.payment_status=p_filters->>'paymentStatus') and (not(p_filters?'fulfillmentStatus') or o.fulfillment_status=p_filters->>'fulfillmentStatus') and (not(p_filters?'attention') or (o.attention_reason is not null)=((p_filters->>'attention')::boolean)) and (coalesce(p_filters->>'search','')='' or position(lower(p_filters->>'search') in lower(o.order_number))>0) order by o.created_at desc,o.id limit 20 offset (page_number-1)*20) rows;
+ return jsonb_build_object('items',result,'total',total_count,'page',page_number,'totalPages',ceil(total_count/20.0));
+end $$;
+
+create function public.fulfillment_admin_order(p_actor uuid,p_order_id uuid) returns jsonb language plpgsql security definer set search_path='' as $$
+declare order_row public.orders; reserved_amount bigint;
+begin
+ perform public.require_admin_actor(p_actor); select * into order_row from public.orders where id=p_order_id;
+ if not found then raise exception 'NOT_FOUND'; end if;
+ reserved_amount:=(public.refunds_summary(p_actor,p_order_id)->>'reservedPaise')::bigint;
+ return public.fulfillment_order_summary(order_row)||jsonb_build_object('address',order_row.shipping_address_snapshot,'email',order_row.customer_email,'phone',order_row.customer_phone,'itemsPayablePaise',order_row.items_payable_paise,'shippingFeePaise',order_row.shipping_fee_paise,'taxBreakdown',order_row.tax_breakdown,'packagingSnapshot',order_row.packaging_snapshot,'refundReservedPaise',reserved_amount,'refundablePaise',greatest(0,order_row.captured_paise-order_row.refunded_paise-reserved_amount),
+ 'items',coalesce((select jsonb_agg(jsonb_build_object('id',i.id,'variantId',i.variant_id,'title',i.product_title,'sku',i.sku,'color',i.color,'size',i.size,'quantity',i.quantity,'unitPricePaise',i.unit_price_paise,'linePayablePaise',i.line_payable_paise,'unitWeightG',i.unit_weight_g) order by i.id) from public.order_items i where i.order_id=p_order_id),'[]'::jsonb),
+ 'refunds',coalesce((select jsonb_agg(jsonb_build_object('id',r.id,'amountPaise',r.amount_paise,'status',r.status,'reason',r.reason,'returnRequestId',r.return_request_id,'createdAt',r.created_at) order by r.created_at desc,r.id) from public.refunds r where r.order_id=p_order_id),'[]'::jsonb),
+ 'audit',coalesce((select jsonb_agg(jsonb_build_object('id',a.id,'actor',a.actor,'action',a.action,'reason',a.reason,'createdAt',a.created_at) order by a.created_at desc,a.id) from (select * from public.audit_logs where entity_id=p_order_id::text or entity_id in(select id::text from public.shipments where order_id=p_order_id union all select id::text from public.refunds where order_id=p_order_id union all select id::text from public.return_requests where order_id=p_order_id) order by created_at desc limit 150) a),'[]'::jsonb));
+end $$;
+
+-- Provider inbox workers must not claim each other's events.
+create or replace function public.checkout_claim_jobs(p_limit integer default 5) returns setof public.jobs language plpgsql security definer set search_path='' as $$
+begin
+ if p_limit not between 1 and 10 then raise exception 'INVALID_PAYLOAD'; end if;
+ perform public.reclaim_expired_jobs(100); perform public.reclaim_expired_operations(100);
+ return query with ready as(select j.id from public.jobs j where j.state in('queued','retry') and j.run_after<=now() and j.attempts<j.max_attempts and (j.type in('payment.create','payment.reconcile','notification.send') or (j.type in('webhook.process','webhook.reconcile') and exists(select 1 from public.webhook_events e where e.id::text=j.payload->>'webhookEventId' and e.provider='razorpay'))) order by j.run_after,j.id for update skip locked limit p_limit)
+ update public.jobs j set state='running',attempts=j.attempts+1,lease_token=gen_random_uuid(),locked_until=now()+interval '300 seconds' from ready where j.id=ready.id returning j.*;
+end $$;
+
+create function public.fulfillment_operations(p_actor uuid) returns jsonb language plpgsql security definer set search_path='' as $$
+begin
+ perform public.require_admin_actor(p_actor);
+ return jsonb_build_object(
+ 'operations',coalesce((select jsonb_agg(jsonb_build_object('id',op.id,'scope',op.scope,'status',op.status,'attempts',op.attempts,'error',op.last_error,'updatedAt',op.updated_at,'orderId',coalesce((select a.order_id from public.payment_attempts a where a.idempotency_operation_id=op.id limit 1),(select s.order_id from public.shipping_operations so join public.shipments s on s.id=so.shipment_id where so.operation_id=op.id),(select r.order_id from public.refunds r where r.operation_id=op.id)),'shipmentId',(select so.shipment_id from public.shipping_operations so where so.operation_id=op.id),'refundId',(select r.id from public.refunds r where r.operation_id=op.id)) order by op.updated_at desc,op.id) from (select * from public.external_operations where status<>'succeeded' order by updated_at desc,id limit 100) op),'[]'::jsonb),
+ 'jobs',coalesce((select jsonb_agg(jsonb_build_object('id',j.id,'type',j.type,'state',j.state,'attempts',j.attempts,'error',j.last_error,'runAfter',j.run_after) order by j.updated_at desc,j.id) from (select * from public.jobs where state in('retry','dead') order by updated_at desc,id limit 100) j),'[]'::jsonb),
+ 'heldOrders',coalesce((select jsonb_agg(public.fulfillment_order_summary(o) order by o.created_at desc,o.id) from (select * from public.orders where attention_reason is not null order by created_at desc,id limit 100) o),'[]'::jsonb),
+ 'notifications',coalesce((select jsonb_agg(jsonb_build_object('id',n.id,'orderId',n.order_id,'status',n.status,'error',n.safe_error) order by n.created_at desc,n.id) from (select * from public.notifications order by created_at desc,id limit 100) n),'[]'::jsonb));
+end $$;
+
+create function public.fulfillment_operation_target(p_actor uuid,p_id uuid,p_reason text) returns jsonb language plpgsql security definer set search_path='' as $$
+declare op public.external_operations; order_id uuid; shipment_id uuid; refund_id uuid;
+begin
+ perform public.require_admin_actor(p_actor);
+ select * into op from public.external_operations where id=p_id; if not found then raise exception 'NOT_FOUND'; end if;
+ if p_reason is null or length(btrim(p_reason)) not between 8 and 1000 then raise exception 'INVALID_PAYLOAD'; end if;
+ select r.id,r.order_id into refund_id,order_id from public.refunds r where r.operation_id=p_id;
+ if refund_id is not null then perform public.require_admin_actor(p_actor,true); else
+ select so.shipment_id,s.order_id into shipment_id,order_id from public.shipping_operations so join public.shipments s on s.id=so.shipment_id where so.operation_id=p_id;
+ if shipment_id is null then select a.order_id into order_id from public.payment_attempts a where a.idempotency_operation_id=p_id limit 1; end if; end if;
+ if order_id is null then raise exception 'NOT_FOUND'; end if;
+ insert into public.audit_logs(actor_user_id,actor,action,entity_type,entity_id,diff,reason) values(p_actor,'admin','operation.reconcile_requested','order',order_id::text,jsonb_build_object('operationId',p_id,'previousStatus',op.status),p_reason);
+ return jsonb_build_object('orderId',order_id,'shipmentId',shipment_id,'refundId',refund_id);
+end $$;
+
+create function public.fulfillment_retry_job(p_actor uuid,p_id uuid,p_reason text) returns void language plpgsql security definer set search_path='' as $$
+declare job_row public.jobs;
+begin
+ perform public.require_admin_actor(p_actor);
+ select * into job_row from public.jobs where id=p_id for update; if not found then raise exception 'NOT_FOUND'; end if;
+ if job_row.type like '%refund%' then perform public.require_admin_actor(p_actor,true); end if;
+ if length(btrim(p_reason)) not between 8 and 1000 or p_reason is null then raise exception 'INVALID_PAYLOAD'; end if;
+ if job_row.state not in('dead','retry') then raise exception 'OPERATION_BUSY'; end if;
+ if job_row.type not in('payment.create','payment.reconcile','notification.send','webhook.process','webhook.reconcile','order.cancel') and job_row.type not like 'shipping.%' and job_row.type not like 'refund.%' and job_row.type not like 'returns.%' then raise exception 'INVALID_PAYLOAD'; end if;
+ insert into public.audit_logs(actor_user_id,actor,action,entity_type,entity_id,diff,reason) values(p_actor,'admin','job.retry','job',p_id::text,jsonb_build_object('previousState',job_row.state,'previousAttempts',job_row.attempts),p_reason);
+ update public.jobs set state='queued',attempts=0,run_after=now(),lease_token=null,locked_until=null,last_error=null where id=p_id;
+end $$;
+
+create function public.fulfillment_resolve(p_actor uuid,p_order_id uuid,p_version integer,p_reason text) returns void language plpgsql security definer set search_path='' as $$
+declare order_row public.orders; ship_row public.shipments; resolved_status text;
+begin
+ perform public.require_admin_actor(p_actor,true);
+ if p_reason is null or length(btrim(p_reason)) not between 8 and 1000 then raise exception 'INVALID_PAYLOAD'; end if;
+ select * into order_row from public.orders where id=p_order_id for update; if not found then raise exception 'NOT_FOUND'; end if;
+ if order_row.version<>p_version then raise exception 'VERSION_CONFLICT' using detail=jsonb_build_object('currentVersion',order_row.version)::text; end if;
+ if order_row.attention_reason is null or exists(select 1 from public.refunds where order_id=p_order_id and status in('requested','processing','unknown')) or exists(select 1 from public.payment_attempts where order_id=p_order_id and status in('creating','pending','authorized','unknown')) then raise exception 'RECONCILIATION_REQUIRED'; end if;
+ if exists(select 1 from public.provider_refund_observations where order_id=p_order_id and status='pending') then raise exception 'RECONCILIATION_REQUIRED'; end if;
+ select * into ship_row from public.shipments where order_id=p_order_id and direction='forward' and booking_status<>'cancelled' for update;
+ if exists(select 1 from public.shipping_operations so join public.shipments s on s.id=so.shipment_id join public.external_operations op on op.id=so.operation_id where s.order_id=p_order_id and op.status in('queued','running','unknown')) then raise exception 'RECONCILIATION_REQUIRED'; end if;
+ if ship_row.id is not null and (ship_row.booking_status in('creating','unknown') or ship_row.transit_status in('exception','rto_in_transit')) then raise exception 'RECONCILIATION_REQUIRED'; end if;
+ if ship_row.transit_status='rto_delivered' then
+   -- A carrier's RTO scan is not warehouse receipt, inspection, restock, or financial proof.
+   -- Each item must be accounted for by completed physical RTO records; resolution itself moves no stock or money.
+   if order_row.attention_reason<>'DELIVERY_EXCEPTION' or order_row.order_status<>'confirmed' or order_row.fulfillment_status<>'held'
+      or order_row.payment_status<>'refunded' or order_row.captured_paise<=0 or order_row.captured_paise<>order_row.total_paise or order_row.refunded_paise<>order_row.captured_paise
+      or (select coalesce(sum(amount_paise),0) from public.provider_refund_observations where order_id=p_order_id and mode=order_row.mode and status='processed')<>order_row.captured_paise
+      or exists(select 1 from public.external_operations op where op.status in('queued','running','unknown') and (exists(select 1 from public.payment_attempts a where a.order_id=p_order_id and a.idempotency_operation_id=op.id) or exists(select 1 from public.refunds r where r.order_id=p_order_id and r.operation_id=op.id)))
+      or not exists(select 1 from public.order_items where order_id=p_order_id)
+      or exists(select 1 from public.return_requests r where r.order_id=p_order_id and r.status<>'rejected' and (r.kind<>'rto' or r.status not in('inspected','closed') or r.received_at is null))
+      or exists(select 1 from public.return_items ri join public.return_requests r on r.id=ri.return_request_id where r.order_id=p_order_id and r.status<>'rejected' and (ri.disposition is null or ri.disposition not in('sellable','damaged','discard') or (ri.disposition='sellable' and ri.restock_quantity<>ri.accepted_quantity)))
+      or exists(select 1 from public.order_items oi where oi.order_id=p_order_id and oi.quantity<>(select coalesce(sum(ri.received_quantity),0) from public.return_items ri join public.return_requests r on r.id=ri.return_request_id where ri.order_item_id=oi.id and r.order_id=p_order_id and r.kind='rto' and r.status in('inspected','closed') and r.received_at is not null and ri.disposition in('sellable','damaged','discard')))
+   then raise exception 'RECONCILIATION_REQUIRED'; end if;
+   resolved_status:='returned';
+ elsif order_row.attention_reason='REFUND_REVIEW' and order_row.order_status='confirmed' and order_row.payment_status='partially_refunded' and order_row.captured_paise=order_row.total_paise and exists(select 1 from public.inventory_reservations where order_id=p_order_id and status='committed') and not exists(select 1 from public.inventory_reservations where order_id=p_order_id and status<>'committed') then
+   resolved_status:=case when ship_row.transit_status='delivered' then 'delivered' when ship_row.pickup_status='picked_up' or ship_row.transit_status in('in_transit','out_for_delivery') then 'shipped' else 'ready' end;
+ elsif order_row.order_status='cancelled' and order_row.refunded_paise=order_row.captured_paise and order_row.captured_paise>0 and order_row.attention_reason in('LATE_CAPTURE_REVIEW','REFUND_REVIEW','CANCELLATION_REQUESTED') and ship_row.id is null and not exists(select 1 from public.inventory_movements where order_id=p_order_id and kind in('sale','restock') group by variant_id having sum(on_hand_delta)<0) then resolved_status:='cancelled';
+ else raise exception 'RECONCILIATION_REQUIRED'; end if;
+ insert into public.audit_logs(actor_user_id,actor,action,entity_type,entity_id,diff,reason) values(p_actor,'owner','order.resolve','order',p_order_id::text,jsonb_build_object('previousAttention',order_row.attention_reason,'fulfillmentStatus',resolved_status),p_reason);
+ update public.orders set attention_reason=null,fulfillment_status=resolved_status where id=p_order_id;
+end $$;
+
+do $$ declare f regprocedure; begin
+ for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'fulfillment_%' loop
+ execute format('revoke all on function %s from public,anon,authenticated',f); execute format('grant execute on function %s to service_role',f);
+ end loop;
+end $$;
+commit;

@@ -1,0 +1,11 @@
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import type { AdminOrderList } from "../../lib/fulfillment/admin-contracts.ts";
+import { m5Request, when } from "./M5Shared.tsx";
+import { OrderStates } from "./M5Orders.tsx";
+export function M5Overview({ lowStockCount }: { lowStockCount: number }) {
+  const [data, setData] = useState<{ ready: AdminOrderList; held: AdminOrderList; recent: AdminOrderList } | null>(null), [error, setError] = useState("");
+  useEffect(() => { let disposed = false; void Promise.all([m5Request<AdminOrderList>("admin/orders?fulfillmentStatus=ready"), m5Request<AdminOrderList>("admin/orders?attention=true"), m5Request<AdminOrderList>("admin/orders")]).then(([ready, held, recent]) => { if (!disposed) setData({ ready, held, recent }); }).catch(error => { if (!disposed) setError(error instanceof Error ? error.message : "Order summary unavailable."); }); return () => { disposed = true; }; }, []);
+  return <>{error && <p className="notice error" role="alert">{error}</p>}<section className="status-grid" aria-label="Operating summary"><article><span className="status-number">AWAITING FULFILLMENT</span><h2>{data ? data.ready.total : "Loading…"}</h2><Link href="/admin/orders?fulfillmentStatus=ready">Review ready orders →</Link></article><article><span className="status-number">ORDER ATTENTION</span><h2>{data ? data.held.total : "Loading…"}</h2><Link href="/admin/operations">Open operations →</Link></article><article><span className="status-number">LOW STOCK VARIANTS</span><h2>{lowStockCount}</h2><p>Enabled variants with 5 or fewer units available.</p><Link href="/admin/products">Review catalog stock →</Link></article></section><section className="panel"><h2>Recent orders</h2>{!data && !error && <p role="status">Loading orders…</p>}{data && (data.recent.items.length ? data.recent.items.slice(0, 5).map(order => <article className="m5-line" key={order.id}><h3><Link href={`/admin/orders/${order.id}`}>{order.orderNumber}</Link></h3><OrderStates order={order} /><p className="small muted">{when(order.createdAt)}</p></article>) : <p>No orders yet. Confirmed checkouts appear here for packing and dispatch.</p>)}<p><Link href="/admin/orders">Open all orders →</Link></p></section></>;
+}
