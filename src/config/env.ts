@@ -94,9 +94,25 @@ export class EnvironmentError extends Error {
   }
 }
 
+/** Vercel does not ship `.env.local`; derive a stable origin when APP_URL is unset. */
+function withDeploymentDefaults(source: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  const env = { ...source };
+  const appUrl = env.APP_URL;
+  if ((typeof appUrl !== "string" || appUrl.trim() === "") && env.VERCEL === "1") {
+    const host = [env.VERCEL_PROJECT_PRODUCTION_URL, env.VERCEL_URL].find(
+      (value): value is string => typeof value === "string" && value.trim().length > 0,
+    );
+    if (host) {
+      const normalized = host.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+      env.APP_URL = `https://${normalized}`;
+    }
+  }
+  return env;
+}
+
 /** Call at server startup or feature entry; never serialize this whole object. */
 export function readEnvironment(source: Readonly<Record<string, unknown>> = process.env): Environment {
-  const parsed = schema.safeParse(source);
+  const parsed = schema.safeParse(withDeploymentDefaults(source));
   if (!parsed.success) {
     throw new EnvironmentError("ENV_INVALID", [...new Set(
       parsed.error.issues.map((issue) => issue.path.join(".")),
