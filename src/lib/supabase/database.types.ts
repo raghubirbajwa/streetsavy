@@ -209,6 +209,84 @@ export type Database = { public: { Tables: {
     };
     Relationships: [];
   };
+  "customer_addresses": {
+    Row: {
+      "id": string;
+      "user_id": string;
+      "line1": string;
+      "city": string;
+      "postcode": string;
+      "country": string;
+      "is_default": boolean;
+      "created_at": string;
+      "updated_at": string;
+      "full_name": string | null;
+      "email": string | null;
+      "phone": string | null;
+      "line2": string;
+      "state_code": string | null;
+    };
+    Insert: {
+      "id"?: string;
+      "user_id": string;
+      "line1": string;
+      "city": string;
+      "postcode": string;
+      "country": string;
+      "is_default"?: boolean;
+      "created_at"?: string;
+      "updated_at"?: string;
+      "full_name"?: string | null;
+      "email"?: string | null;
+      "phone"?: string | null;
+      "line2"?: string;
+      "state_code"?: string | null;
+    };
+    Update: {
+      "id"?: string;
+      "user_id"?: string;
+      "line1"?: string;
+      "city"?: string;
+      "postcode"?: string;
+      "country"?: string;
+      "is_default"?: boolean;
+      "created_at"?: string;
+      "updated_at"?: string;
+      "full_name"?: string | null;
+      "email"?: string | null;
+      "phone"?: string | null;
+      "line2"?: string;
+      "state_code"?: string | null;
+    };
+    Relationships: [];
+  };
+  "customer_profiles": {
+    Row: {
+      "user_id": string;
+      "first_name": string;
+      "last_name": string;
+      "marketing_opt_in": boolean;
+      "created_at": string;
+      "updated_at": string;
+    };
+    Insert: {
+      "user_id": string;
+      "first_name": string;
+      "last_name"?: string;
+      "marketing_opt_in"?: boolean;
+      "created_at"?: string;
+      "updated_at"?: string;
+    };
+    Update: {
+      "user_id"?: string;
+      "first_name"?: string;
+      "last_name"?: string;
+      "marketing_opt_in"?: boolean;
+      "created_at"?: string;
+      "updated_at"?: string;
+    };
+    Relationships: [];
+  };
   "external_operations": {
     Row: {
       "id": string;
@@ -1797,6 +1875,7 @@ export type Database = { public: { Tables: {
   "returns_eligibility": { Args: { "p_order_id": string; "p_token_hash": string; "p_user_id"?: string; }; Returns: Json };
   "returns_json": { Args: { "p_id": string; }; Returns: Json };
   "returns_request": { Args: { "p_order_id": string; "p_token_hash": string; "p_user_id": string; "p_input": Json; "p_actor"?: string; "p_rto"?: boolean; "p_mode"?: string; "p_fixture"?: boolean; }; Returns: Json };
+  "save_customer_address": { Args: { "p_full_name": string; "p_email": string; "p_phone": string; "p_line1": string; "p_city": string; "p_postcode": string; "p_state_code": string; "p_line2"?: string; "p_id"?: string; }; Returns: string };
   "shipping_admin": { Args: { "p_actor": string; "p_action": string; "p_id": string; "p_data"?: Json; }; Returns: Json };
   "shipping_claim_jobs": { Args: { }; Returns: Database["public"]["Tables"]["jobs"]["Row"][] };
   "shipping_claim_operation": { Args: { "p_id": string; }; Returns: Database["public"]["Tables"]["external_operations"]["Row"] };

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AccessError, authorizeAdmin, safeAuthDestination } from "../src/lib/auth/policy.ts";
+import { AccessError, authRecoveryFailure, authorizeAdmin, safeAuthDestination, safeCallbackDestination, safeStoreAuthDestination } from "../src/lib/auth/policy.ts";
 import { fixtureAuthStore, fixtureIdentities } from "../src/lib/auth/fixture.ts";
 
 test("anonymous/nonadmin/disabled/wrong-user identities cannot become admin", () => {
@@ -23,6 +23,27 @@ test("redirect destination is restricted to exact supported local paths", () => 
     assert.equal(safeAuthDestination(input), "/admin");
   }
   assert.equal(safeAuthDestination("/admin/reset-password"), "/admin/reset-password");
+});
+
+test("store auth redirects stay on allowed storefront paths", () => {
+  assert.equal(safeStoreAuthDestination(null), "/account");
+  assert.equal(safeStoreAuthDestination(""), "/account");
+  assert.equal(safeStoreAuthDestination("/account"), "/account");
+  assert.equal(safeStoreAuthDestination("/account/reset-password"), "/account/reset-password");
+  assert.equal(safeStoreAuthDestination("/wishlist"), "/wishlist");
+  assert.equal(safeStoreAuthDestination("/checkout"), "/checkout");
+  assert.equal(safeStoreAuthDestination("/track-order"), "/track-order");
+  assert.equal(safeStoreAuthDestination("/orders/00000000-0000-4000-8000-000000000001"), "/orders/00000000-0000-4000-8000-000000000001");
+  assert.equal(safeStoreAuthDestination("/"), "/");
+  for (const input of ["https://evil.example", "//evil.example", "/\\evil", "/admin", "/admin/reset-password", "/account/../admin", "javascript:alert(1)", "/wishlist/../../admin"]) {
+    assert.equal(safeStoreAuthDestination(input), "/account");
+  }
+  assert.equal(safeCallbackDestination("/admin/reset-password"), "/admin/reset-password");
+  assert.equal(safeCallbackDestination("/account/reset-password"), "/account/reset-password");
+  assert.equal(safeCallbackDestination("/admin/login"), "/admin");
+  assert.equal(safeCallbackDestination("https://evil.example"), "/admin");
+  assert.equal(authRecoveryFailure("/account"), "/account?tab=login&error=recovery");
+  assert.equal(authRecoveryFailure("/admin/reset-password"), "/admin/login?error=recovery");
 });
 
 test("fixture sessions are opaque, hashed, revocable and check current membership", () => {
