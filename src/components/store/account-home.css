@@ -1,0 +1,37 @@
+.store-account-home{--account-line:rgba(255,255,255,.62);display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;margin-top:calc(-1 * var(--store-header-height));min-height:100dvh;color:#f7f4ee;background:linear-gradient(to bottom,rgba(255,255,255,.4),rgba(255,255,255,0) 150px),#1c1a17 url("/account/account-home.jpg") center / cover no-repeat}
+.store:has(.store-account-home) .store-footer{display:none}
+.store-account-home-rail{display:flex;flex-direction:column;min-width:0;padding:calc(var(--store-header-height) + 28px) 28px 28px;border-right:1px solid var(--account-line);background:linear-gradient(180deg,transparent var(--store-header-height),rgba(0,0,0,.5) calc(var(--store-header-height) + 36px))}
+.store-account-home-kicker{margin:0 0 8px;font-size:11px;font-weight:650;letter-spacing:.16em;text-transform:uppercase}
+.store-account-home-name{margin:0;font-size:22px;font-weight:700;letter-spacing:.04em;line-height:1.2;text-transform:uppercase;overflow-wrap:anywhere}
+.store-account-home-nav{display:grid;gap:14px;margin:36px 0 0}
+.store-account-home-nav a,.store .store-account-home-nav button{justify-content:flex-start;min-height:0;padding:0;background:transparent;color:#f7f4ee;border:0;border-radius:0;font-size:12px;font-weight:650;letter-spacing:.14em;line-height:1.4;text-align:left;text-decoration:none;text-transform:uppercase;cursor:pointer}
+.store-account-home-nav a:hover,.store .store-account-home-nav button:hover{background:transparent;color:#fff;text-decoration:underline;text-underline-offset:4px}
+.store-account-home-nav a[aria-current="page"]{text-decoration:underline;text-underline-offset:4px}
+.store-account-home-nav form{display:contents}
+.store-account-home-details{margin-top:auto;padding-top:36px}
+.store-account-home-details h2{margin:0 0 18px;font-size:13px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.store-account-home-details dl{margin:0;display:grid;gap:16px}
+.store-account-home-details dt{margin:0 0 4px;font-size:10px;font-weight:650;letter-spacing:.16em;text-transform:uppercase}
+.store-account-home-details dd{margin:0;font-size:13px;font-weight:650;letter-spacing:.06em;line-height:1.35;text-transform:uppercase;overflow-wrap:anywhere}
+.store-account-home-panel{display:grid;align-content:center;justify-items:center;min-width:0;padding:calc(var(--store-header-height) + 48px) 24px 48px;text-align:center;background:linear-gradient(180deg,transparent var(--store-header-height),rgba(0,0,0,.16) 42%,rgba(0,0,0,.22))}
+.store .store-account-home-panel h1{margin:0;max-width:100%;padding-inline:8px;color:#fff;font-family:"Times New Roman",Times,serif;font-size:clamp(36px,4.6vw,64px);font-weight:500;letter-spacing:.12em;line-height:1.05;text-transform:uppercase;text-shadow:0 2px 18px rgba(0,0,0,.35);overflow-wrap:anywhere}
+.store-account-home-count{margin:18px 0 0;font-size:11px;font-weight:650;letter-spacing:.2em;text-transform:uppercase}
+.store-account-home-empty{margin:22px 0 0;max-width:28ch;font-size:15px;line-height:1.45}
+.store-account-home-help{grid-column:1 / -1;margin:0;padding:16px 28px 20px;border-top:1px solid var(--account-line);font-size:13px;letter-spacing:.02em}
+.store-account-home-help a{color:inherit;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.store-account-address{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;width:min(100%,680px);margin:36px auto 0;text-align:left}
+.store-account-address-lines{display:grid;gap:8px;min-width:0}
+.store-account-address-lines p{margin:0;font-size:13px;font-weight:650;letter-spacing:.14em;line-height:1.4;text-transform:uppercase;overflow-wrap:anywhere}
+.store-account-address-lines .store-account-address-label{font-size:12px;letter-spacing:.16em}
+.store-account-address>a,.store-account-add,.store-account-address-actions a,.store .store-account-address-form button{color:#f7f4ee;background:transparent;border:0;border-radius:0;min-height:0;padding:0;font-size:12px;font-weight:650;letter-spacing:.16em;line-height:1.4;text-transform:uppercase;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.store-account-address>a:hover,.store-account-add:hover,.store .store-account-address-form button:hover{background:transparent;color:#fff}
+.store-account-address-rule{width:min(100%,680px);margin:28px auto;border:0;border-top:1px solid rgba(255,255,255,.72)}
+.store-account-add{justify-self:center}
+.store-account-address-form{display:grid;gap:8px;width:min(100%,420px);margin:28px auto 0;text-align:left}
+.store-account-address-form label{font-size:11px;font-weight:650;letter-spacing:.14em;text-transform:uppercase}
+.store .store-account-address-form input,.store .store-account-address-form select{width:100%;min-height:40px;margin:0 0 8px;padding:8px 0;background:transparent;color:#fff;border:0;border-bottom:1px solid rgba(255,255,255,.72);border-radius:0;font-size:14px;letter-spacing:.06em}
+.store .store-account-address-form option{color:#111}
+.store .store-account-address-form input:focus{outline:none;border-bottom-color:#fff}
+.store-account-address-actions{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:12px}
+.store-account-address-note{width:min(100%,420px);margin:18px auto 0;font-size:13px;line-height:1.4}
+@media(max-width:767px){.store-account-home{grid-template-columns:1fr;grid-template-rows:auto auto auto;min-height:100dvh;height:auto}.store-account-home-rail{padding:calc(var(--store-header-height) + 20px) 18px 22px;border-right:0;border-bottom:1px solid var(--account-line)}.store-account-home-name{font-size:20px}.store-account-home-nav{margin-top:24px}.store-account-home-details{padding-top:28px}.store-account-home-panel{min-height:240px;padding:36px 18px;background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.22))}.store .store-account-home-panel h1{font-size:clamp(26px,8vw,36px);letter-spacing:.08em}.store-account-home-help{padding:14px 18px 18px;overflow-wrap:anywhere}.store-account-address{flex-direction:column;align-items:flex-start;margin-top:24px}.store-account-address-rule,.store-account-address-form,.store-account-address-note{width:100%}}

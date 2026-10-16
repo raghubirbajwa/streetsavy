@@ -36,6 +36,18 @@ export async function publishedMedia(ids: string[]): Promise<PublicDisplayMedia[
   return z.array(publicDisplayMediaSchema).parse(data);
 }
 
+/** Skip published metadata when bytes are missing so the storefront can fall back cleanly. */
+export async function publicMediaIfAvailable(media: PublicDisplayMedia | undefined): Promise<PublicDisplayMedia | undefined> {
+  if (!media) return undefined;
+  try {
+    const { getMediaService } = await import("../media/service.ts");
+    await (await getMediaService()).publicFile(media.publicKey);
+    return media;
+  } catch {
+    return undefined;
+  }
+}
+
 export const storefrontData = cache(async () => {
   const [catalog, rawHome] = await Promise.all([(await catalogRepository()).snapshot(), readPublicContent("public_home_content")]);
   const mode = readEnvironment().APP_MODE;

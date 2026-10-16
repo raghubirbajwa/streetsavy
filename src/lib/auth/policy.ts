@@ -22,3 +22,39 @@ export function authorizeAdmin(user: Identity | null, membership: Membership | n
 export function safeAuthDestination(value: string | null): "/admin" | "/admin/reset-password" {
   return value === "/admin/reset-password" ? value : "/admin";
 }
+
+const storeRoots = ["/account", "/wishlist", "/checkout", "/track-order", "/orders", "/collections", "/search", "/contact", "/products"] as const;
+
+/** Pathname only, after URL normalization. Rejects off-site and non-store targets. */
+function storePathname(value: string): string | null {
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\") || value.includes("\0")) return null;
+  let url: URL;
+  try { url = new URL(value, "http://store.local"); } catch { return null; }
+  if (url.origin !== "http://store.local" || url.username || url.password) return null;
+  const path = url.pathname;
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("..")) return null;
+  if (path === "/") return path;
+  const allowed = storeRoots.some((root) => path === root || path.startsWith(`${root}/`));
+  return allowed ? path : null;
+}
+
+/** Post-login storefront redirect. Unknown values stay on the account page. */
+export function safeStoreAuthDestination(value: string | null): string {
+  if (!value) return "/account";
+  return storePathname(value) ?? "/account";
+}
+
+/** Email-link landing. Admin recovery stays on its exact path; store links stay in the store. */
+export function safeCallbackDestination(value: string | null): string {
+  if (value === "/admin/reset-password") return value;
+  if (value) {
+    const path = storePathname(value);
+    if (path) return path;
+  }
+  return "/admin";
+}
+
+export function authRecoveryFailure(value: string | null): string {
+  if (value && storePathname(value)) return "/account?tab=login&error=recovery";
+  return "/admin/login?error=recovery";
+}
