@@ -3,7 +3,7 @@ import path from "node:path";
 
 export type HeroSlide = { src: string; alt: string; title?: string; body?: string; links?: { label: string; href: string; solid?: boolean; tone?: "tan" }[] };
 
-const SLIDE_COPY: Record<string, Pick<HeroSlide, "alt" | "title" | "links">> = {
+const SLIDE_COPY: Record<string, Pick<HeroSlide, "alt" | "title" | "body" | "links">> = {
   "slide-01": {
     alt: "Seasonal smocks and shirts",
     title: "SEASONAL SMOCKS & SHIRTS",

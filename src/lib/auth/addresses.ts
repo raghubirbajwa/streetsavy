@@ -18,7 +18,7 @@ export type SavedAddress = {
 
 export function stateLabel(code: string): string {
   const index = stateCodes.indexOf(code as (typeof stateCodes)[number]);
-  return index >= 0 ? stateNames[index] : "";
+  return index >= 0 ? (stateNames[index] ?? "") : "";
 }
 
 /** Default India address that checkout can place into the delivery form. */
