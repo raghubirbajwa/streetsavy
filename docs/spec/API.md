@@ -37,6 +37,8 @@ Server Components may call the same read service directly; do not self-fetch HTT
 
 `POST /orders/access/request`: `{orderNumber,email}`; uniform accepted response and timing whether a match exists. Use Supabase email OTP flow to verify email; rate limit. `POST /orders/access/verify`: `{email,token,orderNumber}` verifies through Supabase Auth and grants access only when verified email matches that order's immutable email. Link customer_user_id only server-side after verification; never trust a client boolean or request email as proof. Reuse repository auth callback mechanisms where appropriate.
 
+`POST /auth/store-otp/request`: `{intent:'login'|'signup',email,firstName?,lastName?,marketing?,next?}`. Signup requires first and last name. Sends a Supabase email OTP; fixture mode returns a displayed code and an HttpOnly challenge cookie instead of sending mail. Uniform accepted message; rate limit. `POST /auth/store-otp/verify`: `{email,token,firstName?,lastName?,marketing?,next?}`. Token is exactly six digits. Verifies through Supabase Auth (or the fixture challenge) and establishes the store session. Returns `{href}` on an allowed storefront path.
+
 Wishlist is local IDs only; it needs no endpoint in v1. Transactional emails include a safe order route; receiving the route alone does not reveal data without current guest session or verified recovery.
 
 ## Checkout and payment

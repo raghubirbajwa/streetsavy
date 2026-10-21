@@ -30,4 +30,7 @@
 .store-account-links a{color:#111;font-weight:650;letter-spacing:.06em;text-transform:uppercase;text-decoration:none}
 .store-account-links a:hover{text-decoration:underline}
 .store-account-email{margin:0 0 8px;font-size:14px;letter-spacing:0;text-transform:none}
-@media(max-width:767px){.store-account-scene{min-height:100dvh;height:auto;padding:calc(var(--store-header-height) + 24px) 16px 40px}.store-account-card{width:100%;padding:18px 14px 14px}.store .store-account-card h1{margin-bottom:14px;font-size:13px}.store-account-tabs{margin-bottom:18px}.store-account-submit-label{padding-inline:8px;font-size:11px}.store-account-consent,.store-account-legal{overflow-wrap:anywhere}.store .store-account-card input[type="checkbox"]{width:16px;min-width:16px;min-height:16px;flex:0 0 16px}}
+.store-account-otp{display:flex;justify-content:space-between;gap:8px;margin:0 0 16px}
+.store .store-account-card .store-account-otp-digit{width:42px;min-width:42px;min-height:48px;margin:0;padding:0;text-align:center;font-size:18px;letter-spacing:0}
+.store .store-account-form .store-account-text-button{justify-self:center;margin-top:14px}
+@media(max-width:767px){.store-account-scene{min-height:100dvh;height:auto;padding:calc(var(--store-header-height) + 24px) 16px 40px}.store-account-card{width:100%;padding:18px 14px 14px}.store .store-account-card h1{margin-bottom:14px;font-size:13px}.store-account-tabs{margin-bottom:18px}.store-account-submit-label{padding-inline:8px;font-size:11px}.store-account-consent,.store-account-legal{overflow-wrap:anywhere}.store .store-account-card input[type="checkbox"]{width:16px;min-width:16px;min-height:16px;flex:0 0 16px}.store .store-account-card .store-account-otp-digit{width:36px;min-width:36px;min-height:44px}}

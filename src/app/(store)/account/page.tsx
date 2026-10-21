@@ -10,14 +10,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Account", robots: { index: false, follow: false } };
 
 function noticeFor(tab: "login" | "signup", query: Record<string, string | undefined>) {
-  if (query.confirm === "1") return { tone: "status" as const, text: "Check your email to confirm your account, then sign in." };
-  if (query.reset === "1") return { tone: "status" as const, text: "Password updated. Sign in with your new password." };
-  if (query.error === "credentials") return { tone: "error" as const, text: "Those details don’t match an account. Check them and try again." };
-  if (query.error === "mismatch") return { tone: "error" as const, text: "Passwords do not match." };
-  if (query.error === "invalid") return { tone: "error" as const, text: tab === "signup" ? "Enter your name, a valid email, and a password of at least 8 characters." : "Enter a valid email and password." };
-  if (query.error === "signup") return { tone: "error" as const, text: "Sign-up could not be completed. Try again, or sign in if you already have an account." };
+  if (query.otp === "1") return { tone: "status" as const, text: "Sign in with the email code. Passwords are no longer used." };
+  if (query.error === "invalid") return { tone: "error" as const, text: tab === "signup" ? "Enter your name and a valid email." : "Enter a valid email." };
   if (query.error === "fixture") return { tone: "error" as const, text: "This preview uses the demo customer. Email sign-in is turned off." };
-  if (query.error === "recovery") return { tone: "error" as const, text: "That link expired. Request a new one." };
+  if (query.error === "recovery") return { tone: "error" as const, text: "That code expired. Request a new one." };
   if (query.error === "unavailable") return { tone: "error" as const, text: "Account sign-in is unavailable right now. Try again shortly." };
   if (query.error) return { tone: "error" as const, text: "Sign-in could not be completed. Try again." };
   return null;

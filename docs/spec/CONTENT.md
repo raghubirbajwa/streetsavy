@@ -41,6 +41,8 @@ Return request: “Request a return”; acknowledgement “Request received. We'
 
 Recovery: “Enter your order number and checkout email.” Generic OTP request response: “If these details match an order, follow the verification instructions sent to your email.” Avoid revealing whether an email/order exists.
 
+Account login/signup: email (and name on signup), then “Enter your code”. Generic send response: “If delivery is available, a verification code will arrive. Check your email.” Invalid/expired: “The code is invalid or expired. Request a new code.”
+
 Empty cart: “Your cart is empty.” / “Explore clothing”. Empty wishlist: “Save pieces to come back to.” Empty filters: “No items match these filters.” / “Reset filters”. Missing route: “We couldn't find that page.” Error: “We couldn't load this section.” / “Try again”.
 
 ## Admin interface copy
