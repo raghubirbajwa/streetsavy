@@ -3,43 +3,50 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
     <title>Your StreetSavy verification code</title>
   </head>
-  <body style="margin:0;padding:0;background:#111111;color:#111111;">
+  <body style="margin:0;padding:0;background:#ffffff;color:#ffffff;">
     <!-- Paste this HTML into Supabase → Authentication → Email Templates → Magic Link.
-         Keep {{ .Token }} exactly. Replace the image host if APP_URL is not https://www.streetsavy.com. -->
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#111111;padding:24px 12px;">
+         Keep {{ .Token }} exactly. No <img> and no CID attachment — those show as the
+         three-dot chip in Gmail. Copy sits on the blurred SS26 background. -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="background:#ffffff;margin:0;padding:0;width:100%;">
       <tr>
-        <td align="center">
-          <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;background:#f4efe6;border:1px solid #111111;">
+        <td align="center" style="padding:0;">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;">
             <tr>
-              <td style="padding:20px 24px 12px;font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:#111111;">
-                StreetSavy
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0;">
-                <img src="https://www.streetsavy.com/email/P_Co-SS26-4.jpg" width="560" alt="StreetSavy SS26" style="display:block;width:100%;max-width:560px;height:auto;border:0;" />
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:28px 24px 8px;font-family:ui-monospace,Consolas,monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#111111;">
-                Your verification code
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 24px 8px;font-family:Georgia,'Times New Roman',serif;font-size:36px;letter-spacing:.28em;font-weight:700;color:#111111;">
-                {{ .Token }}
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:8px 24px 28px;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.5;color:#111111;">
-                Enter this 6-digit code on the StreetSavy account or track-order page. It expires shortly. If you did not request it, you can ignore this email.
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 24px 24px;font-family:ui-monospace,Consolas,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5c5954;">
-                Code: {{ .Token }}
+              <td background="https://dbeififkjlteodypaatx.supabase.co/storage/v1/object/public/email-assets/P_Co-SS26-4-bg-v2.jpg" bgcolor="#8a8078" width="600" height="720" valign="middle" style="background-color:#8a8078;background-image:url('https://dbeififkjlteodypaatx.supabase.co/storage/v1/object/public/email-assets/P_Co-SS26-4-bg-v2.jpg');background-repeat:no-repeat;background-position:center center;background-size:cover;">
+                <!--[if gte mso 9]>
+                <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px;height:720px;">
+                  <v:fill type="frame" src="https://dbeififkjlteodypaatx.supabase.co/storage/v1/object/public/email-assets/P_Co-SS26-4-bg-v2.jpg" color="#8a8078" />
+                  <v:textbox inset="0,0,0,0">
+                <![endif]-->
+                <div>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                    <tr>
+                      <td height="720" valign="middle" style="height:720px;padding:40px 32px 36px;">
+                        <p style="margin:0 0 28px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:#ffffff;">StreetSavy</p>
+                        <p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#ff5a1f;">Welcome</p>
+                        <p style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:36px;line-height:1.05;font-weight:700;color:#ffffff;">You're in.</p>
+                        <p style="margin:0 0 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#ffffff;">
+                          This is your StreetSavy sign-in code. Enter it only on <a href="https://www.streetsavy.com" style="color:#ffffff;text-decoration:underline;">streetsavy.com</a>. It expires shortly.
+                        </p>
+                        <p style="margin:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#ffffff;">Verification code</p>
+                        <p style="margin:0 0 22px;font-family:'Courier New',Courier,monospace;font-size:32px;line-height:1.2;letter-spacing:.36em;font-weight:700;color:#ffffff;">{{ .Token }}</p>
+                        <p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#ffffff;">
+                          Code: {{ .Token }}
+                        </p>
+                        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.4;color:#ffffff;">
+                          @www.streetsavy.com #{{ .Token }}
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+                <!--[if gte mso 9]>
+                  </v:textbox>
+                </v:rect>
+                <![endif]-->
               </td>
             </tr>
           </table>

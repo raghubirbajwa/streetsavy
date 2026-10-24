@@ -63,7 +63,8 @@ export async function recoveryAction(request:NextRequest,action:string){
   const env=readEnvironment();const input=await readJson(request,4096);
   if(action==="request"){
     const value=recoveryRequestSchema.parse(input);
-    if(env.APP_MODE==="fixture"){
+    const { storeOtpFixtureMode } = await import("../auth/store-otp.ts");
+    if(storeOtpFixtureMode()){
       for(const[key,row]of challenges)if(row.expires<Date.now())challenges.delete(key);
       const id=randomBytes(32).toString("base64url"),token=String(randomInt(100000,1000000));
       challenges.set(digest(id),{hash:digest(token),email:value.email,orderNumber:value.orderNumber,expires:Date.now()+600000,attempts:0});
@@ -71,18 +72,27 @@ export async function recoveryAction(request:NextRequest,action:string){
       result.cookies.set(challengeCookie,id,{httpOnly:true,sameSite:"lax",secure:env.APP_URL.startsWith("https:"),maxAge:600,path:"/"});return result;
     }
     // Never query orders here. Every valid address takes the same provider path and response.
-    const client=await requestSupabase();await client.auth.signInWithOtp({email:value.email,options:{shouldCreateUser:true}});
-    return {accepted:true,message:"If delivery is available, a verification code will arrive. Check your email."};
+    const { issueStoreOtpEmail } = await import("../auth/otp-mail.ts");
+    const issued=await issueStoreOtpEmail(value.email,{},{orderNumber:value.orderNumber});
+    const mailed=NextResponse.json({data:{accepted:true,message:"If delivery is available, a verification code will arrive. Check your email."}});
+    mailed.cookies.set(challengeCookie,issued.id,{httpOnly:true,sameSite:"lax",secure:env.APP_URL.startsWith("https:"),maxAge:600,path:"/"});
+    return mailed;
   }
   if(action!=="verify")throw new Error("NOT_FOUND");
   const value=recoveryVerifySchema.parse(input);let userId:string|null=null;
-  if(env.APP_MODE==="fixture"){
+  const { storeOtpFixtureMode } = await import("../auth/store-otp.ts");
+  if(storeOtpFixtureMode()){
     const key=digest(request.cookies.get(challengeCookie)?.value??"");const challenge=challenges.get(key);
     if(!challenge||challenge.expires<Date.now()||++challenge.attempts>5)throw new Error("OTP_INVALID");
     if(challenge.email!==value.email||challenge.orderNumber!==value.orderNumber||!timingSafeEqual(Buffer.from(challenge.hash,"hex"),Buffer.from(digest(value.token),"hex")))throw new Error("OTP_INVALID");
     challenges.delete(key);
   }else{
-    const client=await requestSupabase();const verified=await client.auth.verifyOtp({email:value.email,token:value.token,type:"email"});
+    const { takeStoreOtp } = await import("../auth/otp-mail.ts");
+    const supabaseToken=takeStoreOtp(request.cookies.get(challengeCookie)?.value,value.email,value.token,value.orderNumber);
+    const { storeSupabase } = await import("../supabase/store.ts");
+    const client=await storeSupabase();
+    if(!client)throw new Error("INTEGRATION_UNCONFIGURED");
+    const verified=await client.auth.verifyOtp({email:value.email,token:supabaseToken,type:"email"});
     if(verified.error)throw new Error("OTP_INVALID");
     const current=await client.auth.getUser();if(current.error||!current.data.user?.email_confirmed_at||current.data.user.email?.toLowerCase()!==value.email)throw new Error("OTP_INVALID");userId=current.data.user.id;
   }

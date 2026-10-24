@@ -31,8 +31,10 @@ In the Supabase dashboard: **Authentication → SMTP Settings**.
 1. Open [`email-otp-template.html`](email-otp-template.html).
 2. Paste the HTML into the template body.
 3. The body **must** contain `{{ .Token }}` (numeric code). Account login and `/track-order` both expect a 6-digit code.
-4. The hero image URL is `https://www.streetsavy.com/email/P_Co-SS26-4.jpg`. For a staging host, change that origin to the public `APP_URL`. Email clients cannot load `localhost` images.
-5. Confirm email OTP / passwordless email is enabled. Completing `verifyOtp` marks the email verified; avoid a second “confirm email” mail that conflicts with OTP.
+4. Keep the origin-bound line `@www.streetsavy.com #{{ .Token }}` so iPhone Safari / some Android browsers can offer Fill Code. The host must match the page the shopper is on. `localhost` will not autofill from `@www.streetsavy.com`.
+5. The SS26 photo is a **lightly blurred cell background** behind the welcome copy. Do not add an `<img>` tag or a CID attachment — Gmail shows those as a three-dot chip. Do not wrap the code in a dark panel. Host `public/email/P_Co-SS26-4-bg.jpg` at the public Storage URL in the template.
+6. Confirm email OTP / passwordless email is enabled. Completing `verifyOtp` marks the email verified; avoid a second “confirm email” mail that conflicts with OTP.
+7. Re-paste this HTML in Supabase after any template change.
 
 ## Manual inbox check
 

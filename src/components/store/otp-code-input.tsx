@@ -1,71 +1,62 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
+import "./otp-code-input.css";
 
 export function OtpCodeInput({
   length = 6,
   value,
   disabled,
+  autoFocus,
+  name = "one-time-code",
   onChange,
 }: {
   length?: number;
   value: string;
   disabled?: boolean;
+  autoFocus?: boolean;
+  name?: string;
   onChange: (value: string) => void;
 }) {
-  const refs = useRef<Array<HTMLInputElement | null>>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
   const digits = Array.from({ length }, (_, index) => value[index] ?? "");
+  const caret = Math.min(value.length, length - 1);
 
-  function setDigit(index: number, next: string) {
-    const chars = digits.slice();
-    chars[index] = next;
-    onChange(chars.join("").slice(0, length));
-  }
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
-  function focusAt(index: number) {
-    refs.current[Math.max(0, Math.min(length - 1, index))]?.focus();
+  function digitsFrom(raw: string) {
+    return raw.replace(/\D/g, "").slice(0, length);
   }
 
   return (
-    <div className="store-account-otp" role="group" aria-label="Verification code">
-      {digits.map((digit, index) => (
-        <input
-          key={index}
-          ref={(node) => { refs.current[index] = node; }}
-          className="store-account-otp-digit"
-          inputMode="numeric"
-          autoComplete={index === 0 ? "one-time-code" : "off"}
-          maxLength={1}
-          aria-label={`Digit ${index + 1} of ${length}`}
-          value={digit}
-          disabled={disabled}
-          onChange={(event) => {
-            const next = event.target.value.replace(/\D/g, "").slice(-1);
-            setDigit(index, next);
-            if (next) focusAt(index + 1);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Backspace" && !digits[index]) {
-              setDigit(index - 1, "");
-              focusAt(index - 1);
-            } else if (event.key === "ArrowLeft") {
-              event.preventDefault();
-              focusAt(index - 1);
-            } else if (event.key === "ArrowRight") {
-              event.preventDefault();
-              focusAt(index + 1);
-            }
-          }}
-          onPaste={(event) => {
-            const pasted = event.clipboardData.getData("text").replace(/\D/g, "");
-            if (!pasted) return;
-            event.preventDefault();
-            const filled = `${value.slice(0, index)}${pasted}`.replace(/\D/g, "").slice(0, length);
-            onChange(filled);
-            focusAt(Math.min(length - 1, filled.length));
-          }}
-        />
-      ))}
+    <div className="store-otp">
+      <label className="store-otp-label" htmlFor="store-otp-code">Verification code</label>
+      <div className="store-otp-boxes" aria-hidden="true">
+        {digits.map((digit, index) => (
+          <span key={index} className={index === caret ? "store-otp-box is-active" : "store-otp-box"}>{digit}</span>
+        ))}
+      </div>
+      <input
+        ref={inputRef}
+        id="store-otp-code"
+        className="store-otp-field"
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        pattern="[0-9]*"
+        maxLength={length}
+        name={name}
+        value={value}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        enterKeyHint="done"
+        onChange={(event) => onChange(digitsFrom(event.target.value))}
+      />
     </div>
   );
 }

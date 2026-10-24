@@ -1,26 +1,43 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { addressSchema, quoteSchema, sessionSchema, receiptSchema, stateCodes, stateNames, type Address, type Quote, type CheckoutSession, type Receipt } from "../../lib/checkout/contracts.ts";
-import { formatMoney, sizeLabel } from "../../lib/store/purchase.ts";
+import type { CartDTO, CartLine } from "../../lib/cart/contracts.ts";
+import { formatMoney, mediaUrl, sizeLabel } from "../../lib/store/purchase.ts";
 import { useStore } from "./store-provider.tsx";
 import "./checkout.css";
 import { OrderFulfillment } from "./order-fulfillment.tsx";
+import { OtpCodeInput } from "./otp-code-input.tsx";
 
 async function api<T>(path:string,schema:z.ZodType<T>,body?:unknown,key?:string):Promise<T>{
   const response=await fetch(`/api/v1/${path}`,{method:body===undefined?"GET":"POST",cache:"no-store",signal:AbortSignal.timeout(30000),headers:{"Content-Type":"application/json",...(key?{"Idempotency-Key":key}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const data=await response.json();if(data.error)throw new Error(data.error.message??"Please retry.");return schema.parse(data.data);
 }
 type RazorpayResponse={razorpay_payment_id:string;razorpay_order_id:string;razorpay_signature:string};
-declare global {interface Window {Razorpay?:new(options:Record<string,unknown>)=>{open:()=>void}}}
+type RazorpayFailure={error?:{code?:string;description?:string;source?:string;step?:string;reason?:string;metadata?:{order_id?:string;payment_id?:string}}};
+type RazorpayCheckout={open:()=>void;on:(event:"payment.failed",handler:(response:RazorpayFailure)=>void)=>void};
+declare global {interface Window {Razorpay?:new(options:Record<string,unknown>)=>RazorpayCheckout}}
 let checkoutScript:Promise<void>|undefined;
+const wait=(ms:number)=>new Promise<void>((resolve)=>setTimeout(resolve,ms));
 function openOrderDocument(orderId:string){
   // Payment/access changes need a fresh document and store context using the updated HttpOnly cookies.
   // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.assign(`/orders/${orderId}`);
 }
-async function openPayment(session:CheckoutSession,onStatus:(message:string)=>void){
+async function waitUntilReady(session:CheckoutSession,onStatus:(message:string)=>void):Promise<CheckoutSession>{
+  if(session.status!=="processing")return session;
+  onStatus("Preparing payment… This page checks status automatically; do not start another order.");
+  let current=session;
+  for(let attempt=0;attempt<8;attempt++){
+    await wait(Math.min(1000*2**attempt,8000));
+    current=await api(`operations/${current.operationId}`,sessionSchema);
+    if(current.status!=="processing")return current;
+  }
+  return current;
+}
+async function openPayment(session:CheckoutSession,onStatus:(message:string)=>void,address?:Address|null){
   if(session.fixture||!session.keyId||!session.razorpayOrderId||session.status!=="ready")throw new Error("Payment is still being prepared. Open the order status.");
   onStatus("Opening Razorpay payment…");
   if(!window.Razorpay){checkoutScript??=new Promise<void>((resolve,reject)=>{
@@ -34,37 +51,153 @@ async function openPayment(session:CheckoutSession,onStatus:(message:string)=>vo
   const Razorpay=window.Razorpay;
   await new Promise<void>((resolve)=>{
     let verifying=false;
-    const go=()=>{openOrderDocument(session.orderId);resolve();};
+    let finished=false;
+    const go=()=>{if(finished)return;finished=true;openOrderDocument(session.orderId);resolve();};
     onStatus("Complete payment in the Razorpay window. Closing it leaves this order pending.");
-    new Razorpay({key:session.keyId,order_id:session.razorpayOrderId,amount:session.amountPaise,currency:"INR",name:"YOUR BRAND",description:"Clothing order",modal:{ondismiss:()=>{if(!verifying)go();}},handler:async(value:RazorpayResponse)=>{
-      verifying=true;onStatus("Verifying payment… Please wait for the server to confirm capture.");
-      try{await api("payments/razorpay/verify",receiptSchema,{orderId:session.orderId,razorpayPaymentId:value.razorpay_payment_id,razorpayOrderId:value.razorpay_order_id,razorpaySignature:value.razorpay_signature});}
-      catch{/* Receipt remains server-authoritative when verification is unavailable. */}finally{go();}
-    }}).open();
+    const checkout=new Razorpay({
+      key:session.keyId,
+      order_id:session.razorpayOrderId,
+      amount:session.amountPaise,
+      currency:"INR",
+      name:"STREETSAVVY",
+      description:`Clothing order · ${formatMoney(session.amountPaise)}`,
+      image:`${window.location.origin}/brand/streetsavy-logo.png`,
+      notes:{store_order_id:session.orderId},
+      theme:{color:"#151515"},
+      ...(address?{prefill:{name:address.fullName,email:address.email,contact:address.phone}}:{}),
+      modal:{ondismiss:()=>{if(!verifying)go();}},
+      handler:async(value:RazorpayResponse)=>{
+        verifying=true;onStatus("Verifying payment… Please wait for the server to confirm capture.");
+        try{await api("payments/razorpay/verify",receiptSchema,{orderId:session.orderId,razorpayPaymentId:value.razorpay_payment_id,razorpayOrderId:value.razorpay_order_id,razorpaySignature:value.razorpay_signature});}
+        catch(error){
+          onStatus(error instanceof Error?`${error.message} Open the order receipt to refresh status.`:"Verification is still pending. Open the order receipt to refresh status.");
+          await wait(1800);
+        }
+        finally{go();}
+      },
+    });
+    checkout.on("payment.failed",(response)=>{
+      const detail=response.error?.description??response.error?.reason??"Payment failed.";
+      onStatus(`${detail} This order is still pending. You can retry from the receipt.`);
+      if(!verifying)go();
+    });
+    checkout.open();
   });
 }
 function ModeNote({fixture}:{fixture:boolean}){return <p className="checkout-mode">{fixture?"FIXTURE CHECKOUT · No money, shipment or email. Delivery and tax values are samples. Use test details only.":"Review the final total before opening Razorpay. Prepaid INR payments."}</p>;}
+function PaymentBadges(){
+  return <ul className="checkout-pay-badges" aria-label="Cards and UPI accepted in Razorpay"><li>Visa</li><li>Mastercard</li><li>RuPay</li><li>UPI</li></ul>;
+}
+function CheckoutLineThumb({line}:{line:CartLine}){
+  return <div className="checkout-thumb">{line.image?<Image src={mediaUrl(line.image.publicKey)} alt={line.image.alt} width={line.image.width} height={line.image.height} sizes="64px"/>:<span aria-hidden="true">—</span>}<span className="checkout-qty">{line.quantity}</span></div>;
+}
+function CheckoutSummary({cart,quote,expired,now}:{cart:CartDTO;quote:Quote|null;expired:boolean;now:number}){
+  const taxTotal=quote?quote.taxBreakdown.reduce((sum,tax)=>sum+tax.includedPaise,0):0;
+  return <aside className="checkout-summary" aria-live="polite">
+    <h2 className="checkout-visually-hidden">Your order</h2>
+    <ul className="checkout-summary-lines">{cart.lines.map((line)=><li key={line.variantId} className="checkout-summary-line"><CheckoutLineThumb line={line}/><div className="checkout-summary-copy"><p>{line.title}</p><small>{line.colorLabel} / {sizeLabel(line.size)}</small></div><strong>{line.lineSubtotalPaise===null?"Unavailable":formatMoney(line.lineSubtotalPaise)}</strong></li>)}</ul>
+    {quote?<><dl className="checkout-totals"><div><dt>Subtotal</dt><dd>{formatMoney(quote.itemsPayablePaise)}</dd></div><div><dt>Shipping</dt><dd>{quote.shippingFeePaise===0?"Free":formatMoney(quote.shippingFeePaise)}</dd></div>{quote.taxBreakdown.map((tax)=><div key={tax.label}><dt>{tax.label} ({tax.ratePercent}%)</dt><dd>{formatMoney(tax.includedPaise)}</dd></div>)}<div className="checkout-total"><dt>Total</dt><dd><span className="checkout-currency">INR</span> {formatMoney(quote.totalPaise)}</dd></div></dl>{taxTotal>0&&<p className="checkout-tax-note">Including {formatMoney(taxTotal)} in taxes</p>}<p className="checkout-quote-meta">{expired?"This quote expired. Continue from delivery to refresh the total.":`Quote valid for ${Math.max(0,Math.ceil((new Date(quote.expiresAt).getTime()-now)/60000))} more minute(s). Stock is reserved only when you pay.`}</p></>:<p className="checkout-summary-hint">Enter your delivery details to see the final total.</p>}
+  </aside>;
+}
+
+const deliveryFields=[
+  {name:"fullName",label:"Full name",complete:"name",type:"text",className:""} as const,
+  {name:"email",label:"Email",complete:"email",type:"email",className:""} as const,
+  {name:"phone",label:"Mobile number",complete:"tel",type:"tel",className:"checkout-phone"} as const,
+  {name:"line1",label:"Address",complete:"address-line1",type:"text",className:"checkout-span-2"} as const,
+  {name:"line2",label:"Apartment, suite, etc. (optional)",complete:"address-line2",type:"text",className:"checkout-span-2"} as const,
+  {name:"city",label:"City",complete:"address-level2",type:"text",className:""} as const,
+  {name:"pincode",label:"PIN code",complete:"postal-code",type:"text",className:""} as const,
+];
+
 export function CheckoutClient({fixture,savedAddress=null}:{fixture:boolean;savedAddress?:Address|null}){
-  const store=useStore(),cart=store.cart;const[quote,setQuote]=useState<Quote|null>(null);const[busy,setBusy]=useState(false);const[error,setError]=useState("");const[reviewed,setReviewed]=useState(false);const[pending,setPending]=useState<CheckoutSession|null>(null);const[paymentNotice,setPaymentNotice]=useState("");const key=useRef("");const lock=useRef(false);const[now,setNow]=useState(()=>Date.now());
+  const store=useStore(),cart=store.cart;
+  const[quote,setQuote]=useState<Quote|null>(null);
+  const[address,setAddress]=useState<Address|null>(savedAddress);
+  const[busy,setBusy]=useState(false);
+  const[error,setError]=useState("");
+  const[pending,setPending]=useState<CheckoutSession|null>(null);
+  const[paymentNotice,setPaymentNotice]=useState("");
+  const[useDeliveryAsBilling,setUseDeliveryAsBilling]=useState(true);
+  const key=useRef("");
+  const lock=useRef(false);
+  const[now,setNow]=useState(()=>Date.now());
   useEffect(()=>{const tick=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(tick);},[]);
   // Invalidate before committing a render so a changed cart never exposes the old payable quote.
-  if(quote&&cart&&cart.version!==quote.cartVersion){setQuote(null);setReviewed(false);setError("Your cart changed. Review a fresh quote.");}
+  if(quote&&cart&&cart.version!==quote.cartVersion){setQuote(null);setError("Your cart changed. Review a fresh quote.");}
   async function requestQuote(event:React.FormEvent<HTMLFormElement>){
-    event.preventDefault();if(lock.current||!cart)return;lock.current=true;setBusy(true);setError("");setQuote(null);setReviewed(false);
-    try{const address=addressSchema.parse(Object.fromEntries(new FormData(event.currentTarget)));setQuote(await api("checkout/quote",quoteSchema,{cartVersion:cart.version,address}));key.current=crypto.randomUUID();}
+    event.preventDefault();if(lock.current||!cart)return;lock.current=true;setBusy(true);setError("");setQuote(null);setPaymentNotice("");
+    try{
+      const next=addressSchema.parse(Object.fromEntries(new FormData(event.currentTarget)));
+      setAddress(next);
+      setQuote(await api("checkout/quote",quoteSchema,{cartVersion:cart.version,address:next}));
+      key.current=crypto.randomUUID();
+    }
     catch(e){setError(e instanceof z.ZodError?e.issues.map(i=>`${i.path.join(".")}: ${i.message}`).join(" "):e instanceof Error?e.message:"Quote unavailable.");}
     finally{lock.current=false;setBusy(false);}
   }
-  async function pay(){if(!quote||!reviewed||lock.current)return;lock.current=true;setBusy(true);setError("");
-    try{const session=await api("checkout/sessions",sessionSchema,{quoteId:quote.quoteId},key.current);setPending(session);if(session.fixture||session.status!=="ready")openOrderDocument(session.orderId);else await openPayment(session,setPaymentNotice);}
-    catch(e){setError(e instanceof Error?e.message:"Payment preparation failed. Retry this same request.");}finally{lock.current=false;setBusy(false);}
+  async function pay(){
+    if(!quote||lock.current)return;lock.current=true;setBusy(true);setError("");setPaymentNotice("");
+    try{
+      let session=await api("checkout/sessions",sessionSchema,{quoteId:quote.quoteId},key.current);
+      setPending(session);
+      if(session.fixture){openOrderDocument(session.orderId);return;}
+      if(session.status==="processing"){
+        session=await waitUntilReady(session,setPaymentNotice);
+        setPending(session);
+      }
+      if(session.status==="ready"){await openPayment(session,setPaymentNotice,address);return;}
+      setPaymentNotice(session.status==="held"
+        ? "This payment needs review. Open the order receipt instead of starting another payment."
+        : "Payment is still being prepared. Open the order receipt and wait — do not start another order.");
+    }
+    catch(e){setError(e instanceof Error?e.message:"Payment preparation failed. Retry this same request.");}
+    finally{lock.current=false;setBusy(false);}
   }
-  if(store.cartLoading&&!cart)return <p role="status">Loading checkout…</p>;
-  if(cart?.pendingCheckout)return <section className="checkout-card"><h2>You have a pending order.</h2><p>Resolve its payment status before starting another checkout.</p><Link className="store-primary-button" href={`/orders/${cart.pendingCheckout.orderId}`}>Resume order</Link></section>;
-  if(!cart?.lines.length)return <section className="checkout-card"><h2>Your cart is empty.</h2><Link className="store-primary-button" href="/collections/all">Explore clothing</Link></section>;
-  if(cart.hasUnavailableItems)return <section className="checkout-card"><h2>Review your cart first.</h2><p>Remove unavailable items or reduce quantities.</p><Link href="/cart">Return to cart</Link></section>;
+  if(store.cartLoading&&!cart)return <p className="checkout-empty" role="status">Loading checkout…</p>;
+  if(cart?.pendingCheckout)return <section className="checkout-empty checkout-card"><h2>You have a pending order.</h2><p>Resolve its payment status before starting another checkout.</p><Link className="store-primary-button" href={`/orders/${cart.pendingCheckout.orderId}`}>Resume order</Link></section>;
+  if(!cart?.lines.length)return <section className="checkout-empty checkout-card"><h2>Your cart is empty.</h2><Link className="store-primary-button" href="/collections/all">Explore clothing</Link></section>;
+  if(cart.hasUnavailableItems)return <section className="checkout-empty checkout-card"><h2>Review your cart first.</h2><p>Remove unavailable items or reduce quantities.</p><Link href="/cart">Return to cart</Link></section>;
   const expired=quote?new Date(quote.expiresAt).getTime()<=now:false;
-  return <><ModeNote fixture={fixture}/><div className="checkout-grid"><section className="checkout-card"><p className="purchase-kicker">01 / Delivery details</p><h2>Where should it go?</h2><form onSubmit={requestQuote} onChange={()=>{if(quote){setQuote(null);setReviewed(false);}}}><fieldset disabled={busy||!!pending}><div className="checkout-fields">{([['fullName','Full name','name','text'],['email','Email','email','email'],['phone','Mobile number','tel','tel'],['line1','Address line 1','address-line1','text'],['line2','Address line 2 (optional)','address-line2','text'],['city','City','address-level2','text'],['pincode','PIN code','postal-code','text']] as const).map(([name,label,complete,type])=><label key={name}>{label}<input name={name} type={type} autoComplete={`shipping ${complete}`} required={name!=="line2"} maxLength={name==='pincode'?6:name==='phone'?16:200} defaultValue={savedAddress?.[name]??""} {...(name==='pincode'?{inputMode:'numeric' as const,pattern:'[1-9][0-9]{5}'}:{})}/></label>)}<label>State / union territory<select name="stateCode" required defaultValue={savedAddress?.stateCode??""}><option value="" disabled>Select state</option>{stateCodes.map((code,i)=><option key={code} value={code}>{stateNames[i]}</option>)}</select></label><input type="hidden" name="country" value="IN"/></div><p>India only. Address details are not saved in browser storage.</p><button className="store-primary-button" disabled={busy} type="submit">{busy?"Preparing…":"Get delivery quote"}</button></fieldset></form></section><section className="checkout-card" aria-live="polite"><p className="purchase-kicker">02 / Review & pay</p><h2>Your order</h2><ul className="checkout-lines">{cart.lines.map(line=><li key={line.variantId}><span>{line.title}<small>{line.colorLabel} / {sizeLabel(line.size)} × {line.quantity}</small></span><strong>{line.lineSubtotalPaise===null?'Unavailable':formatMoney(line.lineSubtotalPaise)}</strong></li>)}</ul>{quote?<><p>{quote.deliveryLabel}</p><dl className="checkout-totals"><div><dt>Items</dt><dd>{formatMoney(quote.itemsPayablePaise)}</dd></div><div><dt>Delivery</dt><dd>{formatMoney(quote.shippingFeePaise)}</dd></div>{quote.taxBreakdown.map(tax=><div key={tax.label}><dt>{tax.label} ({tax.ratePercent}%)</dt><dd>{formatMoney(tax.includedPaise)}</dd></div>)}<div className="checkout-total"><dt>Total</dt><dd>{formatMoney(quote.totalPaise)}</dd></div></dl><p>{expired?"This quote expired. Get a fresh quote and review its total.":`Quote valid for ${Math.max(0,Math.ceil((new Date(quote.expiresAt).getTime()-now)/60000))} more minute(s). Stock is reserved only when you continue.`}</p><label className="checkout-confirm"><input type="checkbox" checked={reviewed} disabled={expired||busy||!!pending} onChange={e=>setReviewed(e.target.checked)}/>I have reviewed the address and total.</label><button className="store-primary-button" disabled={!reviewed||expired||busy||!!pending} onClick={()=>void pay()}>{busy?"Preparing payment…":fixture?"Continue to fixture payment":`Pay ${formatMoney(quote.totalPaise)}`}</button></>:<p>Enter your delivery details to see the final total.</p>}{paymentNotice&&<p role="status">{paymentNotice}</p>}{pending&&<p><Link href={`/orders/${pending.orderId}`}>Open pending order</Link></p>}{error&&<p className="purchase-error" role="alert">{error}</p>}</section></div></>;
+  const canPay=!!quote&&!expired&&!busy&&!pending;
+  return <>
+    <div className="checkout-main">
+      <h1 className="checkout-visually-hidden">Checkout</h1>
+      <ModeNote fixture={fixture}/>
+      <section className="checkout-block">
+        <h2>Delivery</h2>
+        <form onSubmit={requestQuote} onChange={()=>{if(quote){setQuote(null);setError("");}}}>
+          <fieldset disabled={busy||!!pending}>
+            <div className="checkout-fields">
+              {deliveryFields.map((field)=><label key={field.name} className={field.className}>{field.label}{field.name==="phone"?<span className="checkout-phone-field"><span aria-hidden="true">+91</span><input name={field.name} type={field.type} autoComplete={`shipping ${field.complete}`} required maxLength={16} defaultValue={savedAddress?.[field.name]??""} inputMode="numeric"/></span>:<input name={field.name} type={field.type} autoComplete={`shipping ${field.complete}`} required={field.name!=="line2"} maxLength={field.name==="pincode"?6:200} defaultValue={savedAddress?.[field.name]??""} {...(field.name==="pincode"?{inputMode:"numeric" as const,pattern:"[1-9][0-9]{5}"}:{})}/>}</label>)}
+              <label className="checkout-span-2">State / union territory<select name="stateCode" required defaultValue={savedAddress?.stateCode??""}><option value="" disabled>Select state</option>{stateCodes.map((code,i)=><option key={code} value={code}>{stateNames[i]}</option>)}</select></label>
+              <input type="hidden" name="country" value="IN"/>
+            </div>
+            <p className="checkout-hint">India only. Address details are not saved in browser storage.</p>
+            {!quote&&<button className="store-primary-button" disabled={busy} type="submit">{busy?"Preparing…":"Continue to payment"}</button>}
+          </fieldset>
+        </form>
+      </section>
+      <section className="checkout-block">
+        <h2>Shipping method</h2>
+        {quote
+          ? <div className="checkout-shipping-choice"><span>{quote.deliveryLabel}</span><strong>{quote.shippingFeePaise===0?"Free":formatMoney(quote.shippingFeePaise)}</strong></div>
+          : <p className="checkout-shipping-placeholder">Enter a delivery address to view available shipping methods.</p>}
+      </section>
+      {quote&&<section className="checkout-block">
+        <div className="checkout-pay-heading"><h2>Pay with card / UPI</h2><PaymentBadges/></div>
+        <p className="checkout-hint">All transactions are secure and encrypted. Card and UPI details are collected in Razorpay Checkout — they never touch this page.</p>
+        <label className="checkout-confirm"><input type="checkbox" checked={useDeliveryAsBilling} onChange={(event)=>setUseDeliveryAsBilling(event.target.checked)} disabled={busy||!!pending}/>Use delivery address as billing address</label>
+        <button className="checkout-pay-now" type="button" disabled={!canPay} onClick={()=>void pay()}>{busy?"Preparing payment…":fixture?"Continue to fixture payment":"Pay now"}</button>
+        <p className="checkout-guest-note">Paying as a guest. <Link href="/account">Sign in</Link> to save addresses for next time.</p>
+      </section>}
+      {paymentNotice&&<p role="status">{paymentNotice}</p>}
+      {pending&&<p><Link href={`/orders/${pending.orderId}`}>Open pending order</Link></p>}
+      {error&&<p className="purchase-error" role="alert">{error}</p>}
+      <p className="checkout-legal"><Link href="/policies/terms">Terms and policies</Link> <Link href="/policies/privacy">Privacy</Link></p>
+    </div>
+    <CheckoutSummary cart={cart} quote={quote} expired={expired} now={now}/>
+  </>;
 }
 
 export function OrderClient({id}:{id:string}){
@@ -109,7 +242,7 @@ function OrderDetails({id}:{id:string}){
         const latest=await api(`orders/${id}`,receiptSchema);setOrder(latest);
         if(!latest.canPay)throw new Error("Payment status changed. Review this order before trying again.");
         const session=await api(`orders/${id}/payment`,sessionSchema,{});setPaymentSession(session);
-        await openPayment(session,setNotice);return;
+        await openPayment(session,setNotice,latest.address);return;
       }
       if(action==="captured"||action==="reconcile")setNotice("Verifying payment… The receipt updates only after server confirmation.");
       const value=action==="reconcile"||action==="cancel"?await api(`orders/${id}/${action}`,receiptSchema,action==="cancel"?{reason:"Customer requested cancellation before payment"}:{}):await api("checkout/fixture",receiptSchema,{orderId:id,outcome:action});
@@ -126,10 +259,10 @@ function OrderDetails({id}:{id:string}){
 }
 
 export function OrderRecoveryClient({fixture}:{fixture:boolean}){
-  const[busy,setBusy]=useState(false);const[requested,setRequested]=useState(false);const[details,setDetails]=useState({orderNumber:"",email:""});const[message,setMessage]=useState("");const[error,setError]=useState("");const[fixtureToken,setFixtureToken]=useState("");
-  async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();if(busy)return;setBusy(true);setError("");const form=new FormData(event.currentTarget);
+  const[busy,setBusy]=useState(false);const[requested,setRequested]=useState(false);const[details,setDetails]=useState({orderNumber:"",email:""});const[message,setMessage]=useState("");const[error,setError]=useState("");const[fixtureToken,setFixtureToken]=useState("");const[token,setToken]=useState("");
+  async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();if(busy)return;if(requested&&token.length!==6)return;setBusy(true);setError("");const form=new FormData(event.currentTarget);
     try{if(!requested){const value={orderNumber:String(form.get('orderNumber')).trim(),email:String(form.get('email')).trim().toLowerCase()};const result=await api('orders/access/request',z.object({accepted:z.boolean(),message:z.string(),fixtureToken:z.string().optional()}),value);setDetails(value);setRequested(true);setMessage(result.message);setFixtureToken(result.fixtureToken??'');}
-      else{const result=await api('orders/access/verify',z.object({orderId:z.string().uuid(),href:z.string()}),{...details,token:String(form.get('token')).trim()});openOrderDocument(result.orderId);}}
+      else{const result=await api('orders/access/verify',z.object({orderId:z.string().uuid(),href:z.string()}),{...details,token});openOrderDocument(result.orderId);}}
     catch(e){setError(e instanceof Error?e.message:'Unable to verify.');}finally{setBusy(false);}}
-  return <section className="checkout-card checkout-recovery"><ModeNote fixture={fixture}/><p>Enter the order number and email used at checkout. Access is granted only after verification.</p><form onSubmit={submit}><fieldset disabled={busy}>{!requested?<div className="checkout-fields"><label>Order number<input name="orderNumber" required maxLength={60} autoComplete="off"/></label><label>Email<input name="email" type="email" required maxLength={254} autoComplete="email"/></label></div>:<><p role="status">{message}</p>{fixtureToken&&<p className="checkout-mode">Fixture code: <strong>{fixtureToken}</strong>. This development simulation does not verify a real inbox.</p>}<label>Verification code<input name="token" required inputMode="numeric" pattern="[0-9]{6,10}" autoComplete="one-time-code" maxLength={10}/></label></>}<button className="store-primary-button" type="submit">{busy?'Please wait…':requested?'Verify and open order':'Send verification code'}</button>{requested&&<button className="store-text-button" type="button" onClick={()=>{setRequested(false);setFixtureToken('');setMessage('');}}>Request a new code</button>}</fieldset></form>{error&&<p className="purchase-error" role="alert">{error}</p>}</section>;
+  return <section className="checkout-card checkout-recovery"><ModeNote fixture={fixture}/><p>Enter the order number and email used at checkout. Access is granted only after verification.</p><form onSubmit={submit}><fieldset disabled={busy}>{!requested?<div className="checkout-fields"><label>Order number<input name="orderNumber" required maxLength={60} autoComplete="off"/></label><label>Email<input name="email" type="email" required maxLength={254} autoComplete="email"/></label></div>:<><p role="status">{message}</p>{fixtureToken&&<p className="checkout-mode">Fixture code: <strong>{fixtureToken}</strong>. This development simulation does not verify a real inbox.</p>}<OtpCodeInput value={token} disabled={busy} autoFocus onChange={setToken}/></>}<button className="store-primary-button" type="submit" disabled={requested&&token.length!==6}>{busy?'Please wait…':requested?'Verify and open order':'Send verification code'}</button>{requested&&<button className="store-text-button" type="button" onClick={()=>{setRequested(false);setFixtureToken('');setMessage('');setToken('');}}>Request a new code</button>}</fieldset></form>{error&&<p className="purchase-error" role="alert">{error}</p>}</section>;
 }

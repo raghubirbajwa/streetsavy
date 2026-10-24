@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AuthFormError, readAuthForm } from "../src/lib/http/security.ts";
+import { AuthFormError, readAuthForm, sameOrigin } from "../src/lib/http/security.ts";
 
 function form(body: string | Uint8Array, headers: Record<string, string> = {}) {
   return new Request("http://localhost:3000/api/v1/auth/login", {
@@ -76,4 +76,24 @@ test("stream failures do not expose raw transport error text", async () => {
     assert.equal(error.message, "Malformed form body.");
     return true;
   });
+});
+
+test("local loopback origins are interchangeable outside live mode", () => {
+  const previous = { APP_MODE: process.env.APP_MODE, APP_URL: process.env.APP_URL };
+  process.env.APP_MODE = "fixture";
+  process.env.APP_URL = "http://localhost:3000";
+  try {
+    const headers = { origin: "http://127.0.0.1:3000" };
+    assert.equal(sameOrigin(new Request("http://127.0.0.1:3000/api/v1/auth/store-otp/request", { headers })), true);
+    assert.equal(sameOrigin(new Request("http://localhost:3000/api/v1/auth/store-otp/request", { headers: { origin: "http://localhost:3000" } })), true);
+    assert.equal(sameOrigin(new Request("http://localhost:3000/api/v1/auth/store-otp/request", { headers: { origin: "http://evil.example" } })), false);
+    process.env.APP_MODE = "live";
+    process.env.APP_URL = "https://www.streetsavy.com/";
+    assert.equal(sameOrigin(new Request("https://www.streetsavy.com/api/v1/auth/store-otp/request", { headers: { origin: "http://127.0.0.1:3000" } })), false);
+  } finally {
+    if (previous.APP_MODE === undefined) delete process.env.APP_MODE;
+    else process.env.APP_MODE = previous.APP_MODE;
+    if (previous.APP_URL === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = previous.APP_URL;
+  }
 });

@@ -127,7 +127,7 @@ export function AccountAuthCard({ fixture, initialTab, notice, next }: {
           <p className="store-account-note" role="status">{message}</p>
           {fixtureToken && <p className="store-account-note"><strong>Fixture code</strong>{fixtureToken}. This development simulation does not verify a real inbox.</p>}
           <p className="store-account-email">{email}</p>
-          <OtpCodeInput value={code} disabled={busy} onChange={setCode} />
+          <OtpCodeInput value={code} disabled={busy} autoFocus onChange={setCode} />
           <ArrowButton disabled={busy || code.length !== 6}>{busy ? "Please wait…" : "Verify and continue"}</ArrowButton>
           <button className="store-account-text-button" type="button" disabled={busy} onClick={() => { setStep("details"); setCode(""); setFixtureToken(""); setMessage(""); setError(""); }}>Request a new code</button>
         </form>

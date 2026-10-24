@@ -65,8 +65,11 @@ test("store OTP schemas require a six-digit code and reject passwords", () => {
 test("branded OTP template keeps the numeric token and hosted SS26 image", () => {
   const html = readFileSync(join(root, "docs/supabase/email-otp-template.html"), "utf8");
   assert.match(html, /\{\{ \.Token \}\}/);
-  assert.match(html, /\/email\/P_Co-SS26-4\.jpg/);
+  assert.match(html, /@www\.streetsavy\.com #\{\{ \.Token \}\}/);
+  assert.match(html, /P_Co-SS26-4-bg/);
+  assert.match(html, /background-image:url\(/);
   assert.ok(statSync(join(root, "public/email/P_Co-SS26-4.jpg")).size > 0);
+  assert.ok(statSync(join(root, "public/email/P_Co-SS26-4-bg.jpg")).size > 0);
 });
 
 test("fixture store OTP request/verify issues a session and rejects a wrong code", async () => {

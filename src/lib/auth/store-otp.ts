@@ -56,7 +56,7 @@ const failures: Record<string, [number, string]> = {
   INTEGRATION_UNCONFIGURED: [503, "Account sign-in is not configured yet."],
 };
 
-function fixtureMode() {
+export function storeOtpFixtureMode() {
   const env = readEnvironment();
   return env.APP_MODE === "fixture" && !env.NEXT_PUBLIC_SUPABASE_URL && !env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 }
@@ -160,7 +160,7 @@ export async function storeOtpAction(request: Request, action: string) {
   if (action === "request") {
     const value = storeOtpRequestSchema.parse(input);
     const next = safeStoreAuthDestination(value.next ?? null);
-    if (fixtureMode()) {
+    if (storeOtpFixtureMode()) {
       for (const [key, row] of challenges) if (row.expires < Date.now()) challenges.delete(key);
       const id = randomBytes(32).toString("base64url");
       const token = String(randomInt(100000, 1_000_000));
@@ -182,21 +182,16 @@ export async function storeOtpAction(request: Request, action: string) {
         [setCookie(challengeCookie, id, { maxAge: 600, secure: env.APP_URL.startsWith("https:") })],
       );
     }
-    const { storeSupabase } = await import("../supabase/store.ts");
-    const supabase = await storeSupabase();
-    if (!supabase) throw new Error("INTEGRATION_UNCONFIGURED");
-    await supabase.auth.signInWithOtp({
-      email: value.email,
-      options: {
-        shouldCreateUser: true,
-        data: value.intent === "signup" ? metadata(value) : {},
-      },
-    });
-    return { accepted: true, message: genericMessage };
+    const { issueStoreOtpEmail } = await import("./otp-mail.ts");
+    const issued = await issueStoreOtpEmail(value.email, value.intent === "signup" ? metadata(value) : {});
+    return jsonWithCookies(
+      { accepted: true, message: genericMessage },
+      [setCookie(challengeCookie, issued.id, { maxAge: 600, secure: env.APP_URL.startsWith("https:") })],
+    );
   }
   if (action !== "verify") throw new Error("NOT_FOUND");
   const value = storeOtpVerifySchema.parse(input);
-  if (fixtureMode()) {
+  if (storeOtpFixtureMode()) {
     const key = digest(cookie(request, challengeCookie) ?? "");
     const challenge = challenges.get(key);
     if (!challenge || challenge.expires < Date.now() || ++challenge.attempts > 5) throw new Error("OTP_INVALID");
@@ -216,10 +211,12 @@ export async function storeOtpAction(request: Request, action: string) {
       ],
     );
   }
+  const { takeStoreOtp } = await import("./otp-mail.ts");
+  const supabaseToken = takeStoreOtp(cookie(request, challengeCookie), value.email, value.token);
   const { storeSupabase } = await import("../supabase/store.ts");
   const supabase = await storeSupabase();
   if (!supabase) throw new Error("INTEGRATION_UNCONFIGURED");
-  const verified = await supabase.auth.verifyOtp({ email: value.email, token: value.token, type: "email" });
+  const verified = await supabase.auth.verifyOtp({ email: value.email, token: supabaseToken, type: "email" });
   if (verified.error) throw new Error("OTP_INVALID");
   const current = await supabase.auth.getUser();
   if (current.error || !current.data.user?.email_confirmed_at || current.data.user.email?.toLowerCase() !== value.email) {
@@ -227,5 +224,8 @@ export async function storeOtpAction(request: Request, action: string) {
   }
   const data = metadata(value);
   if (Object.keys(data).length) await supabase.auth.updateUser({ data });
-  return { href: safeStoreAuthDestination(value.next ?? null) };
+  return jsonWithCookies(
+    { href: safeStoreAuthDestination(value.next ?? null) },
+    [setCookie(challengeCookie, "", { maxAge: 0, secure: env.APP_URL.startsWith("https:") })],
+  );
 }
