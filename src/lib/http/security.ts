@@ -2,7 +2,18 @@ import "server-only";
 import { readEnvironment } from "../../config/env.ts";
 
 export function sameOrigin(request: Request): boolean {
-  return request.headers.get("origin") === new URL(readEnvironment().APP_URL).origin;
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  const app = new URL(readEnvironment().APP_URL);
+  let incoming: URL;
+  try { incoming = new URL(origin); } catch { return false; }
+  if (incoming.origin === app.origin) return true;
+  if (readEnvironment().APP_MODE === "live") return false;
+  const loopback = new Set(["localhost", "127.0.0.1", "::1"]);
+  return incoming.protocol === app.protocol
+    && incoming.port === app.port
+    && loopback.has(incoming.hostname)
+    && loopback.has(app.hostname);
 }
 
 // Local defense in depth. Supabase Auth also applies its own provider limits.

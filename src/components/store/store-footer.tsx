@@ -24,7 +24,7 @@ export function StoreFooter({ preview, collectionSlugs }: { preview: boolean; co
     <div className="store-footer-brand">
       <img className="store-footer-wordmark" src="/brand/streetsavy-logo.png" alt="" />
       <div className="store-footer-links">
-        <section aria-label="Footer about">
+        <section className="store-footer-about" aria-label="Footer about">
           <p className="store-kicker">THE EVERYDAY EDIT</p>
           <h2>Make room for<br />your everyday.</h2>
           <Link className="store-text-link" href="/collections">Explore clothing <span aria-hidden="true">↗</span></Link>

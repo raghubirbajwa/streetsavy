@@ -39,11 +39,15 @@ Run **one application process per fixture data directory**. PGlite is an embedde
 
 ## Review checkout
 
-1. Add an available option to your cart, choose Checkout, and enter sample Indian address details. Get a quote, review its inclusive-tax total, and explicitly accept it. PIN `999999` simulates unserviceable delivery; `888888` simulates a provider outage.
-2. Continue to the fixture payment receipt. Try capture, authorization only, failure, or lost confirmation. Refresh payment status to reconcile. Closing the page preserves the pending order; return through your cart.
+Checkout uses a minimal shell (logo + back to cart, no store nav/footer). Delivery is on the left; the grey column shows line thumbnails and the server total.
+
+1. Add an available option to your cart, open `/checkout`, and enter sample Indian address details. Choose **Continue to payment**. PIN `999999` simulates unserviceable delivery; `888888` simulates a provider outage.
+2. Review shipping, tax-inclusive total, and **Pay now**. Fixture mode skips Razorpay and opens the order receipt. Try capture, authorization only, failure, or lost confirmation. Refresh payment status to reconcile. Closing Razorpay (or the page) leaves the order pending; resume from the cart or receipt.
 3. Only captured payment confirms the order and deducts stock. Cancellation of a known unpaid checkout releases its reservation; uncertain or late payments stay held for review. A failed payment reuses the existing order.
 4. At Track order, enter the order number and sample email. Use the displayed fixture code; this does not send email or verify an inbox. Another browser without the receipt capability or successful recovery is denied access.
 5. In `/admin/operations`, review payment holds, uncertain operations, failed jobs and the notification outbox. Fixture notifications truthfully remain unconfigured.
+
+To open the real Razorpay **Test Mode** modal instead of fixture simulation, set `APP_MODE=test` with isolated Supabase keys and `rzp_test_` credentials in `.env.local`. See comments in `.env.example` and [M4_HOSTED_VERIFICATION.md](M4_HOSTED_VERIFICATION.md). Do not put live keys in the review app.
 
 ## Review fulfillment
 

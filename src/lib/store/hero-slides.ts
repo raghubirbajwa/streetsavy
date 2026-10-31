@@ -3,6 +3,11 @@ import path from "node:path";
 
 export type HeroSlide = { src: string; alt: string; title?: string; body?: string; links?: { label: string; href: string; solid?: boolean; tone?: "tan" }[] };
 
+export const HERO_VIDEO = {
+  src: "/hero/gemini_generated_video_6fd4173d.mp4",
+  label: "StreetSavy campaign video",
+} as const;
+
 const SLIDE_COPY: Record<string, Pick<HeroSlide, "alt" | "title" | "body" | "links">> = {
   "slide-01": {
     alt: "Seasonal smocks and shirts",
