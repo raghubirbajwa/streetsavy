@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Navigation, Pagination, A11y } from "swiper/modules";
+import { A11y, Autoplay, Navigation, Pagination } from "swiper/modules";
 import type { HeroSlide } from "../../lib/store/hero-slides.ts";
 import "swiper/css";
 import "swiper/css/navigation";
@@ -10,6 +11,14 @@ import "swiper/css/pagination";
 
 export function HeroBannerSlider({ slides }: { slides: HeroSlide[] }) {
   const canLoop = slides.length > 1;
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduceMotion(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   if (slides.length === 0) {
     return (
@@ -23,10 +32,12 @@ export function HeroBannerSlider({ slides }: { slides: HeroSlide[] }) {
     <div className={`store-hero-swiper-wrap${canLoop ? "" : " is-single"}`}>
       <Swiper
         className="store-hero-swiper"
-        modules={[Navigation, Pagination, A11y]}
+        modules={[Navigation, Pagination, A11y, Autoplay]}
         slidesPerView={1}
         spaceBetween={0}
         loop={canLoop}
+        speed={700}
+        autoplay={canLoop && !reduceMotion ? { delay: 2000, disableOnInteraction: false, pauseOnMouseEnter: true } : false}
         navigation={canLoop}
         pagination={canLoop ? { clickable: true } : false}
         a11y={{ prevSlideMessage: "Previous slide", nextSlideMessage: "Next slide" }}
